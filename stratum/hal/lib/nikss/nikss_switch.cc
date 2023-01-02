@@ -1,5 +1,7 @@
 #include "stratum/hal/lib/nikss/nikss_switch.h"
 
+#include <set>
+
 #include "absl/memory/memory.h"
 #include "absl/synchronization/mutex.h"
 #include "stratum/hal/lib/nikss/nikss_node.h"
