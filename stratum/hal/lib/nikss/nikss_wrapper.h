@@ -6,6 +6,7 @@
 #include "absl/synchronization/mutex.h"
 #include "stratum/glue/status/status.h"
 #include "stratum/hal/lib/nikss/nikss_interface.h"
+//#include "nikss/nikss_session.hpp"
 
 namespace stratum {
 namespace hal {
@@ -15,6 +16,43 @@ namespace nikss {
 // to talk to the Linux eBPF subsystem via the NIKSS APIs calls.
 class NikssWrapper : public NikssInterface {
  public:
+
+    // Wrapper around the nikss session object.
+    /*
+  class Session : public NikssInterface::SessionInterface {
+   public:
+    // SessionInterface public methods.
+    ::util::Status BeginBatch() override {
+      RETURN_IF_BFRT_ERROR(nikss_session_->beginBatch());
+      return ::util::OkStatus();
+    }
+    ::util::Status EndBatch() override {
+      RETURN_IF_BFRT_ERROR(nikss_session_->endBatch( true));
+      RETURN_IF_BFRT_ERROR(nikss_session_->sessionCompleteOperations());
+      return ::util::OkStatus();
+    }
+
+    static ::util::StatusOr<std::shared_ptr<NikssInterface::SessionInterface>>
+    CreateSession() {
+      auto nikss_session = nikss::NikssSession::sessionCreate();
+      RET_CHECK(nikss_session) << "Failed to create new session.";
+      VLOG(1) << "Started new Nikss session with ID "
+              << nikss_session->sessHandleGet();
+
+      return std::shared_ptr<NikssInterface::SessionInterface>(
+          new Session(nikss_session));
+    }
+
+    // Stores the underlying SDE session.
+    std::shared_ptr<nikss::NikssSession> nikss_session_;
+
+   private:
+    // Private constructor. Use CreateSession() instead.
+    Session() {}
+    explicit Session(std::shared_ptr<nikss::NikssSession> nikss_session)
+        : nikss_session_(nikss_session) {}*/
+  //};
+  
   // NikssInterface public methods.
   ::util::Status AddPort(int pipeline_id,
                          const std::string& port_name);

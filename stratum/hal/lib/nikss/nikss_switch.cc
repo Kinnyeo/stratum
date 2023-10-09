@@ -1,7 +1,5 @@
 #include "stratum/hal/lib/nikss/nikss_switch.h"
 
-#include <set>
-
 #include "absl/memory/memory.h"
 #include "absl/synchronization/mutex.h"
 #include "stratum/hal/lib/nikss/nikss_node.h"
@@ -80,7 +78,16 @@ NikssSwitch::~NikssSwitch() {}
 
 ::util::Status NikssSwitch::WriteForwardingEntries(
     const ::p4::v1::WriteRequest& req, std::vector<::util::Status>* results) {
-  return ::util::OkStatus();
+  if (!req.updates_size()) return ::util::OkStatus();  // nothing to do.
+
+  RET_CHECK(req.device_id()) << "No device_id in WriteRequest.";
+  RET_CHECK(results != nullptr)
+      << "Need to provide non-null results pointer for non-empty updates.";
+
+  //absl::ReaderMutexLock l(&chassis_lock);
+  ASSIGN_OR_RETURN(auto* nikss_node, GetNikssNodeFromNodeId(req.device_id()));
+  LOG(INFO) << "Test1";
+  return nikss_node->WriteForwardingEntries(req, results);
 }
 
 ::util::Status NikssSwitch::ReadForwardingEntries(
