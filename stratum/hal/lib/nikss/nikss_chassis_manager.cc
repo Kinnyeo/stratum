@@ -1,6 +1,8 @@
 #include "stratum/hal/lib/nikss/nikss_chassis_manager.h"
 
 #include "absl/synchronization/mutex.h"
+#include "stratum/glue/gtl/map_util.h"
+#include <utility>
 
 namespace stratum {
 namespace hal {
@@ -19,17 +21,9 @@ NikssChassisManager::~NikssChassisManager() = default;
 
 namespace {
 
-// helper to add a NIKSS port
-::util::Status AddPort(NikssInterface* nikss_interface_, uint64 node_id, const std::string& port_name) {
+::util::Status AddPortHelper(NikssInterface* nikss_interface_, uint64 node_id, const std::string& port_name) {
   LOG(INFO) << "Adding port '" << port_name << "' to node " << node_id;
   RETURN_IF_ERROR(nikss_interface_->AddPort(node_id, port_name));
-  return ::util::OkStatus();
-}
-
-// helper to remove a NIKSS port
-::util::Status RemovePort(NikssInterface* nikss_interface_, uint64 node_id, const std::string& port_name) {
-  LOG(INFO) << "Removing port '" << port_name << "' from node " << node_id;
-  RETURN_IF_ERROR(nikss_interface_->DelPort(node_id, port_name));
   return ::util::OkStatus();
 }
 
@@ -44,37 +38,33 @@ std::unique_ptr<NikssChassisManager> NikssChassisManager::CreateInstance(
 ::util::Status NikssChassisManager::PushChassisConfig(
     const ChassisConfig& config) {
   ::util::Status status = ::util::OkStatus();  // errors to keep track of.
-
-  RETURN_IF_ERROR(AddPort(nikss_interface_, 1, "test"));
-
-  /*
-  std::map<uint64, std::map<uint32, PortState>>
-      node_id_to_port_id_to_port_state;
-  std::map<uint64, std::map<uint32, SingletonPort>>
-      node_id_to_port_id_to_port_config;
-
+  
+  std::map<uint64, std::map<uint32, PortConfig>> chassis_config;
 
   for (const auto& singleton_port : config.singleton_ports()) {
-    uint32 port_id = singleton_port.id();
-    uint64 node_id = singleton_port.node();
-    node_id_to_port_id_to_port_state[node_id][port_id] = PORT_STATE_UNKNOWN;
-    node_id_to_port_id_to_port_config[node_id][port_id] = singleton_port;
+    PortConfig port = {
+      .port_id = singleton_port.id(),
+      .name = singleton_port.name(),
+      .admin_state = singleton_port.config_params().admin_state(),
+    };
+
+    auto node_id = singleton_port.node();
+    chassis_config[node_id][port.port_id] = port;
   }
 
-  // Compare ports in old config and new config and perform the necessary
-  // operations.
+/*
+  // Compare ports in old config and new config and perform the necessary operations.
   for (auto& node : config.nodes()) {
-    VLOG(1) << "Updating config for node " << node.id() << ".";
+    LOG(INFO) << "Updating config for node " << node.id() << ".";
     for (const auto& port_old : node_id_to_port_id_to_port_config_[node.id()]) {
       auto port_id = port_old.first;
       auto* singleton_port = gtl::FindOrNull(
           node_id_to_port_id_to_port_config[node.id()], port_id);
 
-      if (singleton_port == nullptr) {  // remove port if not present any more
+      if (singleton_port == nullptr) {  // remove port if not present anymore
         auto& config_old = port_old.second.config_params();
         if (config_old.admin_state() == ADMIN_STATE_ENABLED) {
-          APPEND_STATUS_IF_ERROR(status,
-                                 RemovePort(dev_mgr, node.id(), port_id));
+          APPEND_STATUS_IF_ERROR(status, RemovePort(dev_mgr, node.id(), port_id));
         }
       } else {
         auto& config_old = port_old.second.config_params();
@@ -102,12 +92,15 @@ std::unique_ptr<NikssChassisManager> NikssChassisManager::CreateInstance(
 
 
   }
-
-  node_id_to_port_id_to_port_state_ = node_id_to_port_id_to_port_state;
-  node_id_to_port_id_to_port_config_ = node_id_to_port_id_to_port_config;
-  initialized_ = true;
   */
+
+  chassis_config_ = chassis_config;
+  
   return status;
+}
+
+::util::StatusOr<std::map<uint64, std::map<uint32, NikssChassisManager::PortConfig>>> NikssChassisManager::GetPortConfig() const {
+  return chassis_config_;
 }
 
 }  // namespace nikss

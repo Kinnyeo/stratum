@@ -18,8 +18,16 @@ class NikssChassisManager {
  public:
   virtual ~NikssChassisManager();
 
+  struct PortConfig {
+    uint32 port_id;
+    std::string name;
+    AdminState admin_state;
+  };
+
   virtual ::util::Status PushChassisConfig(const ChassisConfig& config)
       EXCLUSIVE_LOCKS_REQUIRED(chassis_lock);
+  
+  virtual ::util::StatusOr<std::map<uint64, std::map<uint32, PortConfig>>> GetPortConfig() const;
 
   // Factory function for creating the instance of the class.
   static std::unique_ptr<NikssChassisManager> CreateInstance(
@@ -35,6 +43,11 @@ class NikssChassisManager {
   // Private constructor. Use CreateInstance() to create an instance of this
   // class.
   NikssChassisManager(PhalInterface* phal_interface, NikssInterface* nikss_interface);
+
+  ::util::Status AddPortHelper(NikssInterface* nikss_interface_, uint64 node_id,
+  												const std::string& port_name);
+
+  std::map<uint64, std::map<uint32, PortConfig>> chassis_config_;
 
   bool initialized_ GUARDED_BY(chassis_lock);
 

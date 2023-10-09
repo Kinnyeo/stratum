@@ -47,8 +47,11 @@ NikssWrapper::NikssWrapper() {}
   nikss_context_set_pipeline(ctx.get(), static_cast<nikss_pipeline_id_t>(pipeline_id));
 
   int port_id = -1;
+  LOG(INFO) << "Adding port " << port_name << " to pipeline " << pipeline_id << ".";
   RETURN_IF_NIKSS_ERROR(nikss_pipeline_add_port(ctx.get(), port_name.c_str(), &port_id));
-
+  LOG(INFO) << "Port added with port_id=" << port_id << ".";
+  nikss_context_free(ctx.get());
+  
   return ::util::OkStatus();
 }
 
@@ -60,6 +63,8 @@ NikssWrapper::NikssWrapper() {}
 
   RETURN_IF_NIKSS_ERROR(nikss_pipeline_del_port(ctx.get(), port_name.c_str()));
 
+  nikss_context_free(ctx.get());
+  
   return ::util::OkStatus();
 }
 
@@ -73,7 +78,6 @@ NikssWrapper::NikssWrapper() {}
   auto ctx = absl::make_unique<nikss_context_t>();
   nikss_context_init(ctx.get());
   nikss_context_set_pipeline(ctx.get(), static_cast<nikss_pipeline_id_t>(pipeline_id));
-
   if (nikss_pipeline_exists(ctx.get())) {
     LOG(INFO) << "NIKSS pipeline already exists, re-pushing is not supported yet.";
     return ::util::OkStatus();
@@ -81,7 +85,10 @@ NikssWrapper::NikssWrapper() {}
 
   // FIXME: file is not removed if the load() fails
   RETURN_IF_NIKSS_ERROR(nikss_pipeline_load(ctx.get(), tmp_filepath.c_str()));
+  
   RemoveFile(tmp_filepath);
+
+  nikss_context_free(ctx.get());
 
   return ::util::OkStatus();
 }

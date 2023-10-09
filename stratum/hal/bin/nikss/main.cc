@@ -10,6 +10,7 @@
 #include "stratum/hal/lib/phal/phal_sim.h"
 #include "stratum/lib/security/auth_policy_checker.h"
 #include "stratum/lib/security/credentials_manager.h"
+#include <nikss/nikss.h>
 
 // currently we assume only one device_id for NIKSS
 DEFINE_uint32(device_id, 1, "NIKSS device/node id");
@@ -26,8 +27,12 @@ namespace nikss {
 
   auto nikss_wrapper = NikssWrapper::CreateSingleton();
 
-  auto nikss_node = NikssNode::CreateInstance(
+  auto nikss_table_manager = NikssTableManager::CreateInstance(
       nikss_wrapper, node_id);
+
+  auto nikss_node = NikssNode::CreateInstance(
+      nikss_wrapper, nikss_table_manager.get(), node_id);
+
   auto* phal_sim = PhalSim::CreateSingleton();
   absl::flat_hash_map<uint64, NikssNode*> node_id_to_nikss_node = {
       {node_id, nikss_node.get()},

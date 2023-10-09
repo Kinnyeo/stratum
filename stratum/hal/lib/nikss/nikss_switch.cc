@@ -1,14 +1,10 @@
 #include "stratum/hal/lib/nikss/nikss_switch.h"
 
-#include <set>
-
 #include "absl/memory/memory.h"
 #include "absl/synchronization/mutex.h"
 #include "stratum/hal/lib/nikss/nikss_node.h"
 
-extern "C" {
-#include "nikss/nikss.h"
-}
+#include <nikss/nikss.h>
 
 namespace stratum {
 namespace hal {
@@ -29,23 +25,7 @@ NikssSwitch::NikssSwitch(PhalInterface* phal_interface,
 NikssSwitch::~NikssSwitch() {}
 
 ::util::Status NikssSwitch::PushChassisConfig(const ChassisConfig& config) {
-  absl::WriterMutexLock l(&chassis_lock);
-
-  std::set<uint64> known_node_ids;
-  std::set<uint64> new_node_ids;
-  for (auto& node : node_id_to_nikss_node_) known_node_ids.insert(node.first);
-  for (auto& node : config.nodes()) new_node_ids.insert(node.id());
-  if (known_node_ids != new_node_ids) {
-    return MAKE_ERROR(ERR_INVALID_PARAM)
-           << "The NikssSwitch expects constant node ids";
-  }
-
-  for (const auto& node : config.nodes()) {
-    // check if node with ID exists, returned node_ is not used
-    ASSIGN_OR_RETURN(auto* node_, GetNikssNodeFromNodeId(node.id()));
-  }
-
-  RETURN_IF_ERROR(phal_interface_->PushChassisConfig(config));
+  LOG(INFO) << "Pushing chassis config";
   RETURN_IF_ERROR(nikss_chassis_manager_->PushChassisConfig(config));
   return ::util::OkStatus();
 }
@@ -56,15 +36,17 @@ NikssSwitch::~NikssSwitch() {}
 
 ::util::Status NikssSwitch::PushForwardingPipelineConfig(
     uint64 node_id, const ::p4::v1::ForwardingPipelineConfig& config) {
-
+  
   LOG(INFO) << "Pushing P4-based forwarding pipeline to NIKSS";
 
   ASSIGN_OR_RETURN(auto* node, GetNikssNodeFromNodeId(node_id));
-  RETURN_IF_ERROR(node->PushForwardingPipelineConfig(config));
+  ASSIGN_OR_RETURN(auto chassis_config, nikss_chassis_manager_->GetPortConfig());
+  
+  RETURN_IF_ERROR(node->PushForwardingPipelineConfig(config, chassis_config));
 
   LOG(INFO) << "P4-based forwarding pipeline config pushed successfully to "
             << "node with ID " << node_id << ".";
-
+  
   return ::util::OkStatus();
 }
 
@@ -86,13 +68,26 @@ NikssSwitch::~NikssSwitch() {}
   return ::util::OkStatus();
 }
 
-::util::Status NikssSwitch::Freeze() { return ::util::OkStatus(); }
+::util::Status NikssSwitch::Freeze() { 
+  return ::util::OkStatus(); 
+}
 
-::util::Status NikssSwitch::Unfreeze() { return ::util::OkStatus(); }
+::util::Status NikssSwitch::Unfreeze() { 
+  return ::util::OkStatus(); 
+}
 
 ::util::Status NikssSwitch::WriteForwardingEntries(
     const ::p4::v1::WriteRequest& req, std::vector<::util::Status>* results) {
-  return ::util::OkStatus();
+  if (!req.updates_size()) return ::util::OkStatus();  // nothing to do.
+
+  RET_CHECK(req.device_id()) << "No device_id in WriteRequest.";
+  RET_CHECK(results != nullptr)
+      << "Need to provide non-null results pointer for non-empty updates.";
+
+  //absl::ReaderMutexLock l(&chassis_lock);
+  ASSIGN_OR_RETURN(auto* nikss_node, GetNikssNodeFromNodeId(req.device_id()));
+  LOG(INFO) << "Test1";
+  return nikss_node->WriteForwardingEntries(req, results);
 }
 
 ::util::Status NikssSwitch::ReadForwardingEntries(
