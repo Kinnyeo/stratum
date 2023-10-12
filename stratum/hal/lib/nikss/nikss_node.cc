@@ -15,13 +15,15 @@ NikssNode::NikssNode(NikssInterface* nikss_interface,
                      uint64 node_id)
     : config_(),
       nikss_interface_(ABSL_DIE_IF_NULL(nikss_interface)),
-      nikss_table_manager_(ABSL_DIE_IF_NULL(nikss_table_manager)),
+      //nikss_table_manager_(ABSL_DIE_IF_NULL(nikss_table_manager)),
+      p4_info_manager_(nullptr),
       node_id_(node_id) {}
 
 NikssNode::NikssNode()
     : config_(),
       nikss_interface_(nullptr),
-      nikss_table_manager_(nullptr),
+      //nikss_table_manager_(nullptr),
+      p4_info_manager_(nullptr),
       node_id_(0) {}
 
 NikssNode::~NikssNode() = default;
@@ -40,12 +42,27 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
     std::map<uint64, std::map<uint32, NikssChassisManager::PortConfig>> chassis_config) {
   // SaveForwardingPipelineConfig + CommitForwardingPipelineConfig
   RETURN_IF_ERROR(SaveForwardingPipelineConfig(config));
+
+  //absl::WriterMutexLock l(&lock_);
+  //RET_CHECK(config.programs_size() == 1) << "Only one P4 program is supported.";
+  auto p4_info = config.p4info();
+  std::unique_ptr<P4InfoManager> p4_info_manager =
+      absl::make_unique<P4InfoManager>(p4_info);
+  RETURN_IF_ERROR(p4_info_manager->InitializeAndVerify());
+  p4_info_manager_ = std::move(p4_info_manager);
+
   return CommitForwardingPipelineConfig(chassis_config);
 }
 
 ::util::Status NikssNode::SaveForwardingPipelineConfig(
     const ::p4::v1::ForwardingPipelineConfig& config) {
   config_ = config;
+  /*P4PipelineConfig nikss_config;
+  LOG(INFO) << config.p4_name();
+
+  auto program = nikss_config.add_programs();
+  program->set_name(config.p4_name());
+  program->set_bfrt(config.bfruntime_info());*/
   return ::util::OkStatus();
 }
 
@@ -81,7 +98,6 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
       << ::p4::v1::WriteRequest::Atomicity_Name(req.atomicity())
       << " is not supported.";
       
-  //tymczasowo bez tego    
   /*
   if (!initialized_ || !pipeline_initialized_) {
     return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
@@ -96,8 +112,7 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
     ::util::Status status = ::util::OkStatus();
     switch (update.entity().entity_case()) {
       case ::p4::v1::Entity::kTableEntry:
-        status = nikss_table_manager_->WriteTableEntry(
-            //session, 
+        status = WriteTableEntry(
             update.type(), update.entity().table_entry());
         break;
       /*case ::p4::v1::Entity::kExternEntry:
@@ -155,6 +170,95 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
 
   LOG(INFO) << "P4-based forwarding entities written successfully to node with "
             << "ID " << node_id_ << ".";
+  return ::util::OkStatus();
+}
+
+::util::Status NikssNode::WriteTableEntry(
+    //std::shared_ptr<NikssInterface::SessionInterface> session,
+    const ::p4::v1::Update::Type type,
+    const ::p4::v1::TableEntry& table_entry) {
+  /*RET_CHECK(type != ::p4::v1::Update::UNSPECIFIED)
+      << "Invalid update type " << type;*/
+    auto table_id = table_entry.table_id();
+    LOG(INFO) << "TableManager_WriteTableEntry ";
+    LOG(INFO) << "table_id = " << table_id << ".";
+
+    ASSIGN_OR_RETURN(auto table, p4_info_manager_->FindTableByID(
+                                   table_id));
+
+    LOG(INFO) << "name: " << table << ".";
+
+    // parse_key_data(argc, argv, entry);
+    //
+
+      
+  /*ASSIGN_OR_RETURN(const auto& translated_table_entry,
+                   bfrt_p4runtime_translator_->TranslateTableEntry(
+                       table_entry,true));
+
+  ASSIGN_OR_RETURN(auto table, p4_info_manager_->FindTableByID(
+                                   translated_table_entry.table_id()));
+  ASSIGN_OR_RETURN(uint32 table_id, bf_sde_interface_->GetBfRtId(
+                                        translated_table_entry.table_id()));
+
+  if (!translated_table_entry.is_default_action()) {
+    if (table.is_const_table()) {
+      return MAKE_ERROR(ERR_PERMISSION_DENIED)
+             << "Can't write to table " << table.preamble().name()
+             << " because it has const entries.";
+    }
+    ASSIGN_OR_RETURN(auto table_key,
+                     bf_sde_interface_->CreateTableKey(table_id));
+    RETURN_IF_ERROR(BuildTableKey(translated_table_entry, table_key.get()));
+
+    ASSIGN_OR_RETURN(
+        auto table_data,
+        bf_sde_interface_->CreateTableData(
+            table_id, translated_table_entry.action().action().action_id()));
+    if (type == ::p4::v1::Update::INSERT || type == ::p4::v1::Update::MODIFY) {
+      RETURN_IF_ERROR(BuildTableData(translated_table_entry, table_data.get()));
+    }
+
+    switch (type) {
+      case ::p4::v1::Update::INSERT:
+        RETURN_IF_ERROR(bf_sde_interface_->InsertTableEntry(
+            device_, session, table_id, table_key.get(), table_data.get()));
+        break;
+      case ::p4::v1::Update::MODIFY:
+        RETURN_IF_ERROR(bf_sde_interface_->ModifyTableEntry(
+            device_, session, table_id, table_key.get(), table_data.get()));
+        break;
+      case ::p4::v1::Update::DELETE:
+        RETURN_IF_ERROR(bf_sde_interface_->DeleteTableEntry(
+            device_, session, table_id, table_key.get()));
+        break;
+      default:
+        return MAKE_ERROR(ERR_INTERNAL)
+               << "Unsupported update type: " << type << " in table entry "
+               << translated_table_entry.ShortDebugString() << ".";
+    }
+  } else {
+    RET_CHECK(type == ::p4::v1::Update::MODIFY)
+        << "The table default entry can only be modified.";
+    RET_CHECK(translated_table_entry.match_size() == 0)
+        << "Default action must not contain match fields.";
+    RET_CHECK(translated_table_entry.priority() == 0)
+        << "Default action must not contain a priority field.";
+
+    if (translated_table_entry.has_action()) {
+      ASSIGN_OR_RETURN(
+          auto table_data,
+          bf_sde_interface_->CreateTableData(
+              table_id, translated_table_entry.action().action().action_id()));
+      RETURN_IF_ERROR(BuildTableData(translated_table_entry, table_data.get()));
+      RETURN_IF_ERROR(bf_sde_interface_->SetDefaultTableEntry(
+          device_, session, table_id, table_data.get()));
+    } else {
+      RETURN_IF_ERROR(bf_sde_interface_->ResetDefaultTableEntry(
+          device_, session, table_id));
+    }
+  }*/
+
   return ::util::OkStatus();
 }
 

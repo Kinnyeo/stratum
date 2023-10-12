@@ -19,11 +19,9 @@ namespace nikss {
 NikssTableManager::NikssTableManager(
     //OperationMode mode, 
     NikssInterface* nikss_interface,
-    //BfrtP4RuntimeTranslator* bfrt_p4runtime_translator,
     int device)
     : //mode_(mode),
       nikss_interface_(ABSL_DIE_IF_NULL(nikss_interface)),
-      //bfrt_p4runtime_translator_(ABSL_DIE_IF_NULL(bfrt_p4runtime_translator)),
       //p4_info_manager_(nullptr),
       device_(device) 
       {}
@@ -31,7 +29,6 @@ NikssTableManager::NikssTableManager(
 NikssTableManager::NikssTableManager()
     : //mode_(OPERATION_MODE_STANDALONE),
       nikss_interface_(nullptr),
-      //bfrt_p4runtime_translator_(nullptr),
       //p4_info_manager_(nullptr),
       device_(-1) {}
 
@@ -40,12 +37,10 @@ NikssTableManager::~NikssTableManager() = default;
 std::unique_ptr<NikssTableManager> NikssTableManager::CreateInstance(
     //OperationMode mode, 
     NikssInterface* nikss_interface,
-    //BfrtP4RuntimeTranslator* bfrt_p4runtime_translator, 
     int device) {
   return absl::WrapUnique(new NikssTableManager(
       //mode, 
       nikss_interface, 
-      //bfrt_p4runtime_translator, 
       device));
 }
 
@@ -180,11 +175,13 @@ std::unique_ptr<NikssTableManager> NikssTableManager::CreateInstance(
       << "Invalid update type " << type;*/
     LOG(INFO) << "TableManager_WriteTableEntry ";
     LOG(INFO) << "table_id = " << table_entry.table_id() << ".";
+    LOG(INFO) << "name: " << table_entry.metadata() << ".";
+
+    // parse_key_data(argc, argv, entry);
+    //
+
       
-      
-  //absl::ReaderMutexLock l(&lock_);
-  /*
-  ASSIGN_OR_RETURN(const auto& translated_table_entry,
+  /*ASSIGN_OR_RETURN(const auto& translated_table_entry,
                    bfrt_p4runtime_translator_->TranslateTableEntry(
                        table_entry,true));
 
