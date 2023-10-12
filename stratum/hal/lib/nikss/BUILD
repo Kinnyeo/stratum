@@ -95,7 +95,6 @@ stratum_cc_library(
     srcs = ["nikss_node.cc"],
     hdrs = ["nikss_node.h"],
     deps = [
-    	":nikss_table_manager",
         ":nikss_interface",
         ":nikss_chassis_manager",
         "//stratum/glue:integral_types",
@@ -104,6 +103,7 @@ stratum_cc_library(
         "//stratum/hal/lib/common:common_cc_proto",
         "//stratum/hal/lib/common:proto_oneof_writer_wrapper",
         "//stratum/hal/lib/common:writer_interface",
+        "//stratum/hal/lib/p4:p4_info_manager",
         "//stratum/lib:constants",
         "//stratum/lib:macros",
         "//stratum/lib:utils",
@@ -113,26 +113,3 @@ stratum_cc_library(
     ],
 )
 
-stratum_cc_library(
-    name = "nikss_table_manager",
-    srcs = ["nikss_table_manager.cc"],
-    hdrs = ["nikss_table_manager.h"],
-    deps = [
-    	":nikss_interface",
-        "//stratum/glue:integral_types",
-        "//stratum/glue:logging",
-        "//stratum/glue/gtl:map_util",
-        "//stratum/glue/gtl:stl_util",
-        "//stratum/glue/status",
-        "//stratum/glue/status:statusor",
-        "//stratum/hal/lib/common:common_cc_proto",
-        "//stratum/hal/lib/p4:utils",
-        "//stratum/lib:constants",
-        "//stratum/lib:utils",
-        "//stratum/lib/channel",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/cleanup",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@local_nikss_bin//:nikss",
-    ],
-)

@@ -61,6 +61,8 @@ class NikssWrapper : public NikssInterface {
   ::util::Status AddPipeline(int pipeline_id,
                          const std::string filepath) override;
 
+  // add table entry - z nikss node
+
   static NikssWrapper* CreateSingleton() LOCKS_EXCLUDED(init_lock_);
 
   // NikssWrapper is neither copyable nor movable.
