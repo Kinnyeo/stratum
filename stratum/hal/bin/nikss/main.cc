@@ -27,11 +27,8 @@ namespace nikss {
 
   auto nikss_wrapper = NikssWrapper::CreateSingleton();
 
-  auto nikss_table_manager = NikssTableManager::CreateInstance(
-      nikss_wrapper, node_id);
-
   auto nikss_node = NikssNode::CreateInstance(
-      nikss_wrapper, nikss_table_manager.get(), node_id);
+      nikss_wrapper, node_id);
 
   auto* phal_sim = PhalSim::CreateSingleton();
   absl::flat_hash_map<uint64, NikssNode*> node_id_to_nikss_node = {
