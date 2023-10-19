@@ -38,7 +38,6 @@ class NikssNode {
   // Factory function for creating the instance of the class.
   static std::unique_ptr<NikssNode> CreateInstance(
       NikssInterface* nikss_interface, 
-      NikssTableManager* nikss_table_manager, 
       uint64 node_id);
 
   // NikssNode is neither copyable nor movable.
@@ -55,7 +54,6 @@ class NikssNode {
   // Private constructor. Use CreateInstance() to create an instance of this
   // class.
   NikssNode(NikssInterface* nikss_interface, 
-    NikssTableManager* nikss_table_manager, 
     uint64 node_id);
 
   // Reader-writer lock used to protect access to node-specific state.

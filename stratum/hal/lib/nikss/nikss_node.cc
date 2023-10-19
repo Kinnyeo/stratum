@@ -11,7 +11,6 @@ namespace hal {
 namespace nikss {
 
 NikssNode::NikssNode(NikssInterface* nikss_interface, 
-                     NikssTableManager* nikss_table_manager,
                      uint64 node_id)
     : config_(),
       nikss_interface_(ABSL_DIE_IF_NULL(nikss_interface)),
@@ -31,10 +30,9 @@ NikssNode::~NikssNode() = default;
 // Factory function for creating the instance of the class.
 std::unique_ptr<NikssNode> NikssNode::CreateInstance(
     NikssInterface* nikss_interface, 
-    NikssTableManager* nikss_table_manager,
     uint64 node_id) {
   return absl::WrapUnique(
-      new NikssNode(nikss_interface, nikss_table_manager, node_id));
+      new NikssNode(nikss_interface, node_id));
 }
 
 ::util::Status NikssNode::PushForwardingPipelineConfig(
@@ -114,8 +112,8 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
       case ::p4::v1::Entity::kTableEntry:
         status = WriteTableEntry(
             update.type(), update.entity().table_entry());
-        break;
-      /*case ::p4::v1::Entity::kExternEntry:
+        break;/*
+      case ::p4::v1::Entity::kExternEntry:
         status = WriteExternEntry(session, update.type(),
                                   update.entity().extern_entry());
         break;
@@ -180,33 +178,33 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
   /*RET_CHECK(type != ::p4::v1::Update::UNSPECIFIED)
       << "Invalid update type " << type;*/
     auto table_id = table_entry.table_id();
-    LOG(INFO) << "TableManager_WriteTableEntry ";
-    LOG(INFO) << "table_id = " << table_id << ".";
+    LOG(INFO) << "WriteTableEntry ";
+    LOG(INFO) << "table_id: " << table_id;
 
     ASSIGN_OR_RETURN(auto table, p4_info_manager_->FindTableByID(
                                    table_id));
 
-    LOG(INFO) << "name: " << table << ".";
+    auto name = table.preamble().name();
+    LOG(INFO) << "name: " << name;
+    for (const auto& match : table.match_fields()) {
+      LOG(INFO) << "match: " << match.name();
+    }
+
+    for (const auto& match : table.action_refs()) {
+      for (const auto& an : match.annotations())
+      LOG(INFO) << "action: " << an;
+    }
 
     // parse_key_data(argc, argv, entry);
     //
-
-      
-  /*ASSIGN_OR_RETURN(const auto& translated_table_entry,
-                   bfrt_p4runtime_translator_->TranslateTableEntry(
-                       table_entry,true));
-
-  ASSIGN_OR_RETURN(auto table, p4_info_manager_->FindTableByID(
-                                   translated_table_entry.table_id()));
-  ASSIGN_OR_RETURN(uint32 table_id, bf_sde_interface_->GetBfRtId(
-                                        translated_table_entry.table_id()));
-
+  /*
   if (!translated_table_entry.is_default_action()) {
     if (table.is_const_table()) {
       return MAKE_ERROR(ERR_PERMISSION_DENIED)
              << "Can't write to table " << table.preamble().name()
              << " because it has const entries.";
-    }
+    }*/
+    /*
     ASSIGN_OR_RETURN(auto table_key,
                      bf_sde_interface_->CreateTableKey(table_id));
     RETURN_IF_ERROR(BuildTableKey(translated_table_entry, table_key.get()));
@@ -261,6 +259,144 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
 
   return ::util::OkStatus();
 }
+
+/*
+::util::StatusOr<std::unique_ptr<BfSdeInterface::TableKeyInterface>>
+TableKey::CreateTableKey(const bfrt::BfRtInfo* bfrt_info_, int table_id) {
+  const bfrt::BfRtTable* table;
+  RETURN_IF_BFRT_ERROR(bfrt_info_->bfrtTableFromIdGet(table_id, &table));
+  std::unique_ptr<bfrt::BfRtTableKey> table_key;
+  RETURN_IF_BFRT_ERROR(table->keyAllocate(&table_key));
+  auto key = std::unique_ptr<BfSdeInterface::TableKeyInterface>(
+      new TableKey(std::move(table_key)));
+  return key;
+}*/
+/*
+::util::StatusOr<::p4::v1::TableEntry> BfrtTableManager::BuildP4TableEntry(
+    const ::p4::v1::TableEntry& request, //table entry
+    const BfSdeInterface::TableKeyInterface* table_key,
+    const BfSdeInterface::TableDataInterface* table_data) {
+  ::p4::v1::TableEntry result;
+
+  ASSIGN_OR_RETURN(auto table,
+                   p4_info_manager_->FindTableByID(request.table_id()));
+  result.set_table_id(request.table_id());
+
+  bool has_priority_field = false;
+  // Match keys
+  for (const auto& expected_match_field : table.match_fields()) {
+    ::p4::v1::FieldMatch match;  // Added to the entry later.
+    match.set_field_id(expected_match_field.id());
+    switch (expected_match_field.match_type()) {
+      case ::p4::config::v1::MatchField::EXACT: {
+        RETURN_IF_ERROR(table_key->GetExact( //useless
+            expected_match_field.id(), match.mutable_exact()->mutable_value()));
+        /*if (!IsDontCareMatch(match.exact())) {
+          *result.add_match() = match;
+        }*//*
+        break;
+      }
+      case ::p4::config::v1::MatchField::TERNARY: {
+        has_priority_field = true;
+        std::string value, mask;
+        RETURN_IF_ERROR(
+            table_key->GetTernary(expected_match_field.id(), &value, &mask));
+        match.mutable_ternary()->set_value(value);
+        match.mutable_ternary()->set_mask(mask);
+        if (!IsDontCareMatch(match.ternary())) {
+          *result.add_match() = match;
+        }
+        break;
+      }
+      case ::p4::config::v1::MatchField::LPM: {
+        std::string prefix;
+        uint16 prefix_length;
+        RETURN_IF_ERROR(table_key->GetLpm(expected_match_field.id(), &prefix,
+                                          &prefix_length));
+        match.mutable_lpm()->set_value(prefix);
+        match.mutable_lpm()->set_prefix_len(prefix_length);
+        if (!IsDontCareMatch(match.lpm())) {
+          *result.add_match() = match;
+        }
+        break;
+      }
+      case ::p4::config::v1::MatchField::RANGE: { // not supported log
+        LOG(INFO) << "Error: RANGE type is not supported";
+        /*has_priority_field = true;
+        std::string low, high;
+        RETURN_IF_ERROR(
+            table_key->GetRange(expected_match_field.id(), &low, &high));
+        match.mutable_range()->set_low(low);
+        match.mutable_range()->set_high(high);
+        if (!IsDontCareMatch(match.range(), expected_match_field.bitwidth())) {
+          *result.add_match() = match;*//*
+        }
+        break;
+      }
+      default:
+        return MAKE_ERROR(ERR_INVALID_PARAM)
+               << "Invalid field match type "
+               << ::p4::config::v1::MatchField_MatchType_Name(
+                      expected_match_field.match_type())
+               << ".";
+    }
+  }
+
+  // Default actions do not have a priority, even when the table usually
+  // requires one. The SDE would return 0 (highest) which we must not translate.
+  if (request.is_default_action()) {
+    has_priority_field = false;
+  }
+
+  // Priority.
+  if (has_priority_field) {
+    uint32 bf_priority;
+    RETURN_IF_ERROR(table_key->GetPriority(&bf_priority));
+    ASSIGN_OR_RETURN(uint64 p4rt_priority,
+                     ConvertPriorityFromBfrtToP4rt(bf_priority));
+    result.set_priority(p4rt_priority);
+  }
+
+  // Action and action data
+  int action_id;
+  RETURN_IF_ERROR(table_data->GetActionId(&action_id));
+  // TODO(max): perform check if action id is valid for this table.
+  if (action_id) {
+    ASSIGN_OR_RETURN(auto action, p4_info_manager_->FindActionByID(action_id));
+    result.mutable_action()->mutable_action()->set_action_id(action_id);
+    for (const auto& expected_param : action.params()) {
+      std::string value;
+      RETURN_IF_ERROR(table_data->GetParam(expected_param.id(), &value));
+      auto* param = result.mutable_action()->mutable_action()->add_params();
+      param->set_param_id(expected_param.id());
+      param->set_value(value);
+    }
+  }
+
+  // Action profile member id
+  uint64 action_member_id;
+  if (table_data->GetActionMemberId(&action_member_id).ok()) {
+    result.mutable_action()->set_action_profile_member_id(action_member_id);
+  }
+
+  // Action profile group id
+  uint64 selector_group_id;
+  if (table_data->GetSelectorGroupId(&selector_group_id).ok()) {
+    result.mutable_action()->set_action_profile_group_id(selector_group_id);
+  }
+
+  // Counter data, if applicable.
+  uint64 bytes, packets;
+  if (request.has_counter_data() &&
+      table_data->GetCounterData(&bytes, &packets).ok()) {
+    result.mutable_counter_data()->set_byte_count(bytes);
+    result.mutable_counter_data()->set_packet_count(packets);
+  }
+
+  return result;
+}
+
+*/
 
 }  // namespace nikss
 }  // namespace hal
