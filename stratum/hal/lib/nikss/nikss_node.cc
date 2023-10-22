@@ -5,6 +5,7 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/memory/memory.h"
 #include "stratum/lib/macros.h"
+#include <vector>
 
 namespace stratum {
 namespace hal {
@@ -112,7 +113,8 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
       case ::p4::v1::Entity::kTableEntry:
         status = WriteTableEntry(
             update.type(), update.entity().table_entry());
-        break;/*
+        break;
+      /*
       case ::p4::v1::Entity::kExternEntry:
         status = WriteExternEntry(session, update.type(),
                                   update.entity().extern_entry());
@@ -178,22 +180,75 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
   /*RET_CHECK(type != ::p4::v1::Update::UNSPECIFIED)
       << "Invalid update type " << type;*/
     auto table_id = table_entry.table_id();
-    LOG(INFO) << "WriteTableEntry ";
-    LOG(INFO) << "table_id: " << table_id;
+    auto action_id = table_entry.action().action().action_id();
+    //LOG(INFO) << "WriteTableEntry";
 
     ASSIGN_OR_RETURN(auto table, p4_info_manager_->FindTableByID(
                                    table_id));
 
-    auto name = table.preamble().name();
-    LOG(INFO) << "name: " << name;
-    for (const auto& match : table.match_fields()) {
-      LOG(INFO) << "match: " << match.name();
-    }
+    ASSIGN_OR_RETURN(auto action, p4_info_manager_->FindActionByID(
+                                   action_id));
 
+    //LOG(INFO) << "Action: " << action.preamble().name();
+    auto name = table.preamble().name();
+    LOG(INFO) << "New request table with id: " 
+              << table_id << " and name: " << name;
+
+    /*
     for (const auto& match : table.action_refs()) {
       for (const auto& an : match.annotations())
       LOG(INFO) << "action: " << an;
+    }*/
+
+    // Search for all match fields ids in p4info file
+    /*std::vector<int> p4info_match_ids;
+    for (const auto& match : table.match_fields()) {
+      //LOG(INFO) << "match: " << match.id();
+      p4info_match_ids.push_back(match.id());
     }
+
+    for (::p4::v1::FieldMatch matches : table_entry.match()){
+      for (auto expected_id : p4info_match_ids){
+        if (matches.field_id() == expected_id){
+          std::string* match_exact_value = matches.mutable_exact()->mutable_value()
+          LOG(INFO) << "match name: " << 
+          LOG(INFO) << "match value: " << *match_exact_value;
+          break;
+        }
+      }
+
+      //std::string* val = matches.mutable_exact()->mutable_value();
+        //LOG(INFO) << "match: " << *val;
+    }*/
+
+
+    // Search for all match fields ids in request
+    std::vector<int> request_match_ids;
+    for (::p4::v1::FieldMatch match : table_entry.match()) {
+      request_match_ids.push_back(match.field_id());
+    }
+
+    for (const auto& expected_match : table.match_fields()){
+      for (auto match_id : request_match_ids){
+        if (expected_match.id() == match_id){
+          LOG(INFO) << "Found match with id: " << expected_match.id() 
+                    << " and name: " << expected_match.name();
+          break;
+        }
+      }
+    }
+
+    // Finding actions from request in p4info file
+    for (const auto& p4info_action : table.action_refs()){
+      if (action_id == p4info_action.id()){
+        LOG(INFO) << "Found action with id: " << action_id
+                  << " and name: " << action.preamble().name();
+        break;
+      }
+    }
+
+    //LOG(INFO) << "action: " << table_entry.action().action().action_id(); 
+    // api nikss - przejrzec
 
     // parse_key_data(argc, argv, entry);
     //
