@@ -1,0 +1,4 @@
+cd ../usr/local/include/nikss
+sudo vim nikss.h
+
+<remove const>
