@@ -5,7 +5,11 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/memory/memory.h"
 #include "stratum/lib/macros.h"
-#include <vector>
+
+extern "C" {
+#include "nikss/nikss.h"
+#include "nikss/nikss_pipeline.h"
+}
 
 namespace stratum {
 namespace hal {
@@ -161,7 +165,6 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
     success &= status.ok();
     results->push_back(status);
   }
-  //RETURN_IF_ERROR(session->EndBatch());
 
   if (!success) {
     return MAKE_ERROR(ERR_AT_LEAST_ONE_OPER_FAILED)
@@ -173,6 +176,11 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
   return ::util::OkStatus();
 }
 
+std::string ConvertToNikssName(std::string input_name){
+    std::replace(input_name.begin(), input_name.end(), '.', '_');
+    return input_name;
+}
+
 ::util::Status NikssNode::WriteTableEntry(
     //std::shared_ptr<NikssInterface::SessionInterface> session,
     const ::p4::v1::Update::Type type,
@@ -181,7 +189,6 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
       << "Invalid update type " << type;*/
     auto table_id = table_entry.table_id();
     auto action_id = table_entry.action().action().action_id();
-    //LOG(INFO) << "WriteTableEntry";
 
     ASSIGN_OR_RETURN(auto table, p4_info_manager_->FindTableByID(
                                    table_id));
@@ -189,50 +196,47 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
     ASSIGN_OR_RETURN(auto action, p4_info_manager_->FindActionByID(
                                    action_id));
 
-    //LOG(INFO) << "Action: " << action.preamble().name();
     auto name = table.preamble().name();
     LOG(INFO) << "New request table with id: " 
               << table_id << " and name: " << name;
 
-    /*
-    for (const auto& match : table.action_refs()) {
-      for (const auto& an : match.annotations())
-      LOG(INFO) << "action: " << an;
-    }*/
+    std::string nikss_name = ConvertToNikssName(name);
+    
+    auto nikss_ctx = absl::make_unique<nikss_context_t>();
+    nikss_context_init(nikss_ctx.get());
+    nikss_context_set_pipeline(nikss_ctx.get(), static_cast<nikss_pipeline_id_t>(node_id_));
 
-    // Search for all match fields ids in p4info file
-    /*std::vector<int> p4info_match_ids;
-    for (const auto& match : table.match_fields()) {
-      //LOG(INFO) << "match: " << match.id();
-      p4info_match_ids.push_back(match.id());
-    }
+    auto entry = absl::make_unique<nikss_table_entry_t>();
+    nikss_table_entry_init(entry.get());
 
-    for (::p4::v1::FieldMatch matches : table_entry.match()){
-      for (auto expected_id : p4info_match_ids){
-        if (matches.field_id() == expected_id){
-          std::string* match_exact_value = matches.mutable_exact()->mutable_value()
-          LOG(INFO) << "match name: " << 
-          LOG(INFO) << "match value: " << *match_exact_value;
-          break;
-        }
-      }
+    auto entry_ctx = absl::make_unique<nikss_table_entry_ctx_t>();
+    nikss_table_entry_ctx_init(entry_ctx.get());
+    nikss_table_entry_ctx_tblname(nikss_ctx.get(), entry_ctx.get(), nikss_name.c_str());
 
-      //std::string* val = matches.mutable_exact()->mutable_value();
-        //LOG(INFO) << "match: " << *val;
-    }*/
+    auto action_ctx = absl::make_unique<nikss_action_t>();
+    nikss_action_init(action_ctx.get());
 
 
-    // Search for all match fields ids in request
-    std::vector<int> request_match_ids;
-    for (::p4::v1::FieldMatch match : table_entry.match()) {
-      request_match_ids.push_back(match.field_id());
-    }
-
+    // Finding matches from request in p4info file
     for (const auto& expected_match : table.match_fields()){
-      for (auto match_id : request_match_ids){
-        if (expected_match.id() == match_id){
-          LOG(INFO) << "Found match with id: " << expected_match.id() 
-                    << " and name: " << expected_match.name();
+      for (auto match : table_entry.match()){
+        if (expected_match.id() == match.field_id()){
+          LOG(INFO) << "Found match with name: " << expected_match.name()
+                    << " and value: " << match.exact().value();
+
+          auto value = match.exact().value();
+          nikss_match_key_t mk;
+          nikss_matchkey_init(&mk);
+          nikss_matchkey_type(&mk, NIKSS_EXACT);
+
+          int error_code = nikss_matchkey_data(&mk, value.c_str(), value.length());
+          if (error_code != NO_ERROR)
+            return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
+          
+          error_code = nikss_table_entry_matchkey(entry.get(), &mk);
+          nikss_matchkey_free(&mk);
+          if (error_code != NO_ERROR)
+            return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
           break;
         }
       }
@@ -241,17 +245,60 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
     // Finding actions from request in p4info file
     for (const auto& p4info_action : table.action_refs()){
       if (action_id == p4info_action.id()){
-        LOG(INFO) << "Found action with id: " << action_id
-                  << " and name: " << action.preamble().name();
+        LOG(INFO) << "Found action with name: " << action.preamble().name();
+        std::string action_name = ConvertToNikssName(action.preamble().name());
+        int action_ctx_id = nikss_table_get_action_id_by_name(entry_ctx.get(), action_name.c_str());
+        nikss_action_set_id(action_ctx.get(), action_ctx_id);
+        
+        bool param_exists = 0;
+        for (auto param : action.params()) {
+          int param_id = param.id();
+          for (auto request_param : table_entry.action().action().params()){
+            if (request_param.param_id() == param_id){
+              LOG(INFO) << "Param value: " << request_param.value();
+
+              auto value = request_param.value();
+              nikss_action_param_t param;
+
+              int error_code = nikss_action_param_create(&param, value.c_str(), value.length());
+              if (error_code != NO_ERROR)
+                return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
+
+              error_code = nikss_action_param(action_ctx.get(), &param);
+              if (error_code != NO_ERROR)
+                return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
+              
+              nikss_action_param_free(&param);
+              param_exists = 1;
+              break;
+            }
+          }
+
+          if (!param_exists){
+            LOG(INFO) << "Param not found!";
+            return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
+          }
+        }
         break;
       }
     }
+    // Add action to entry
+    nikss_table_entry_action(entry.get(), action_ctx.get());
 
-    //LOG(INFO) << "action: " << table_entry.action().action().action_id(); 
-    // api nikss - przejrzec
+    // Push table entry
+    int error_code = nikss_table_entry_add(entry_ctx.get(), entry.get());
+    if (error_code != NO_ERROR){
+      return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
+    else
+      LOG(INFO) << "Successfully added table " << nikss_name;
 
-    // parse_key_data(argc, argv, entry);
-    //
+    // Cleanup
+    nikss_context_free(nikss_ctx.get());
+    nikss_table_entry_free(entry.get());
+    nikss_table_entry_ctx_free(entry_ctx.get());
+    nikss_action_free(action_ctx.get());
+
+
   /*
   if (!translated_table_entry.is_default_action()) {
     if (table.is_const_table()) {
