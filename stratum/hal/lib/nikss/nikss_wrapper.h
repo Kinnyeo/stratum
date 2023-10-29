@@ -5,8 +5,12 @@
 
 #include "absl/synchronization/mutex.h"
 #include "stratum/glue/status/status.h"
+#include "p4/v1/p4runtime.pb.h"
 #include "stratum/hal/lib/nikss/nikss_interface.h"
 //#include "nikss/nikss_session.hpp"
+extern "C" {
+#include "nikss/nikss.h"
+}
 
 namespace stratum {
 namespace hal {
@@ -16,42 +20,6 @@ namespace nikss {
 // to talk to the Linux eBPF subsystem via the NIKSS APIs calls.
 class NikssWrapper : public NikssInterface {
  public:
-
-    // Wrapper around the nikss session object.
-    /*
-  class Session : public NikssInterface::SessionInterface {
-   public:
-    // SessionInterface public methods.
-    ::util::Status BeginBatch() override {
-      RETURN_IF_BFRT_ERROR(nikss_session_->beginBatch());
-      return ::util::OkStatus();
-    }
-    ::util::Status EndBatch() override {
-      RETURN_IF_BFRT_ERROR(nikss_session_->endBatch( true));
-      RETURN_IF_BFRT_ERROR(nikss_session_->sessionCompleteOperations());
-      return ::util::OkStatus();
-    }
-
-    static ::util::StatusOr<std::shared_ptr<NikssInterface::SessionInterface>>
-    CreateSession() {
-      auto nikss_session = nikss::NikssSession::sessionCreate();
-      RET_CHECK(nikss_session) << "Failed to create new session.";
-      VLOG(1) << "Started new Nikss session with ID "
-              << nikss_session->sessHandleGet();
-
-      return std::shared_ptr<NikssInterface::SessionInterface>(
-          new Session(nikss_session));
-    }
-
-    // Stores the underlying SDE session.
-    std::shared_ptr<nikss::NikssSession> nikss_session_;
-
-   private:
-    // Private constructor. Use CreateSession() instead.
-    Session() {}
-    explicit Session(std::shared_ptr<nikss::NikssSession> nikss_session)
-        : nikss_session_(nikss_session) {}*/
-  //};
   
   // NikssInterface public methods.
   ::util::Status AddPort(int pipeline_id,
@@ -60,6 +28,32 @@ class NikssWrapper : public NikssInterface {
                          const std::string& port_name);
   ::util::Status AddPipeline(int pipeline_id,
                          const std::string filepath) override;
+  ::util::Status ContextInit(
+                         nikss_context_t* nikss_ctx,
+                         nikss_table_entry_t* entry,
+                         nikss_table_entry_ctx_t* entry_ctx,
+                         nikss_action_t* action_ctx,
+                         int node_id, std::string nikss_name);
+  ::util::Status AddMatchesToEntry(
+                         const ::p4::v1::TableEntry& request,
+                         const ::p4::config::v1::Table table,
+                         nikss_table_entry_t* entry);
+  ::util::Status AddActionsToEntry(
+                         const ::p4::v1::TableEntry& request,
+                         const ::p4::config::v1::Table table,
+                         const ::p4::config::v1::Action action,
+                         nikss_action_t* action_ctx,
+                         nikss_table_entry_ctx_t* entry_ctx,
+                         nikss_table_entry_t* entry);
+  ::util::Status PushTableEntry(
+                         const ::p4::config::v1::Table table,
+                         nikss_table_entry_ctx_t* entry_ctx,
+                         nikss_table_entry_t* entry);
+  ::util::Status Cleanup(
+                         nikss_context_t* nikss_ctx,
+                         nikss_table_entry_t* entry,
+                         nikss_table_entry_ctx_t* entry_ctx,
+                         nikss_action_t* action_ctx);
 
   // add table entry - z nikss node
 
@@ -79,6 +73,12 @@ class NikssWrapper : public NikssInterface {
 
   // The singleton instance.
   static NikssWrapper* singleton_ GUARDED_BY(init_lock_);
+
+/*
+  std::string ConvertToNikssName(std::string input_name);
+
+  std::string InvertValue(std::string value);
+*/
 
  private:
 
