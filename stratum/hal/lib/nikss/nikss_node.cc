@@ -19,14 +19,12 @@ NikssNode::NikssNode(NikssInterface* nikss_interface,
                      uint64 node_id)
     : config_(),
       nikss_interface_(ABSL_DIE_IF_NULL(nikss_interface)),
-      //nikss_table_manager_(ABSL_DIE_IF_NULL(nikss_table_manager)),
       p4_info_manager_(nullptr),
       node_id_(node_id) {}
 
 NikssNode::NikssNode()
     : config_(),
       nikss_interface_(nullptr),
-      //nikss_table_manager_(nullptr),
       p4_info_manager_(nullptr),
       node_id_(0) {}
 
@@ -109,8 +107,6 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
   LOG(INFO) << "WriteForwardingEntries";
 
   bool success = true;
-  //ASSIGN_OR_RETURN(auto session, nikss_interface_->CreateSession());
-  //RETURN_IF_ERROR(session->BeginBatch());
   for (const auto& update : req.updates()) {
     ::util::Status status = ::util::OkStatus();
     switch (update.entity().entity_case()) {
@@ -176,17 +172,10 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
   return ::util::OkStatus();
 }
 
-std::string ConvertToNikssName(std::string input_name){
-    std::replace(input_name.begin(), input_name.end(), '.', '_');
-    return input_name;
-}
-
 ::util::Status NikssNode::WriteTableEntry(
-    //std::shared_ptr<NikssInterface::SessionInterface> session,
     const ::p4::v1::Update::Type type,
     const ::p4::v1::TableEntry& table_entry) {
-  /*RET_CHECK(type != ::p4::v1::Update::UNSPECIFIED)
-      << "Invalid update type " << type;*/
+
     auto table_id = table_entry.table_id();
     auto action_id = table_entry.action().action().action_id();
 
@@ -199,118 +188,32 @@ std::string ConvertToNikssName(std::string input_name){
     auto name = table.preamble().name();
     LOG(INFO) << "New request table with id: " 
               << table_id << " and name: " << name;
-
-    std::string nikss_name = ConvertToNikssName(name);
     
+    // Nikss contexts declaration
     auto nikss_ctx = absl::make_unique<nikss_context_t>();
-    nikss_context_init(nikss_ctx.get());
-    nikss_context_set_pipeline(nikss_ctx.get(), static_cast<nikss_pipeline_id_t>(node_id_));
-
     auto entry = absl::make_unique<nikss_table_entry_t>();
-    nikss_table_entry_init(entry.get());
-
     auto entry_ctx = absl::make_unique<nikss_table_entry_ctx_t>();
-    nikss_table_entry_ctx_init(entry_ctx.get());
-    nikss_table_entry_ctx_tblname(nikss_ctx.get(), entry_ctx.get(), nikss_name.c_str());
-
     auto action_ctx = absl::make_unique<nikss_action_t>();
-    nikss_action_init(action_ctx.get());
 
+    // Init nikss contexts
+    RETURN_IF_ERROR(nikss_interface_->ContextInit(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
+                                      action_ctx.get(), node_id_, name));
 
-    // Finding matches from request in p4info file
-    for (const auto& expected_match : table.match_fields()){
-      for (auto match : table_entry.match()){
-        if (expected_match.id() == match.field_id()){
-          LOG(INFO) << "Found match with name: " << expected_match.name()
-                    << " and value: " << match.exact().value();
+    // Add matches from request to entry
+    RETURN_IF_ERROR(nikss_interface_->AddMatchesToEntry(table_entry, table, entry.get()));
 
-          auto value = match.exact().value();
-          nikss_match_key_t mk;
-          nikss_matchkey_init(&mk);
-          nikss_matchkey_type(&mk, NIKSS_EXACT);
-
-          int error_code = nikss_matchkey_data(&mk, value.c_str(), value.length());
-          if (error_code != NO_ERROR)
-            return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
-          
-          error_code = nikss_table_entry_matchkey(entry.get(), &mk);
-          nikss_matchkey_free(&mk);
-          if (error_code != NO_ERROR)
-            return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
-          break;
-        }
-      }
-    }
-
-    // Finding actions from request in p4info file
-    for (const auto& p4info_action : table.action_refs()){
-      if (action_id == p4info_action.id()){
-        LOG(INFO) << "Found action with name: " << action.preamble().name();
-        std::string action_name = ConvertToNikssName(action.preamble().name());
-        int action_ctx_id = nikss_table_get_action_id_by_name(entry_ctx.get(), action_name.c_str());
-        nikss_action_set_id(action_ctx.get(), action_ctx_id);
-        
-        bool param_exists = 0;
-        for (auto param : action.params()) {
-          int param_id = param.id();
-          for (auto request_param : table_entry.action().action().params()){
-            if (request_param.param_id() == param_id){
-              LOG(INFO) << "Param value: " << request_param.value();
-
-              auto value = request_param.value();
-              nikss_action_param_t param;
-
-              int error_code = nikss_action_param_create(&param, value.c_str(), value.length());
-              if (error_code != NO_ERROR)
-                return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
-
-              error_code = nikss_action_param(action_ctx.get(), &param);
-              if (error_code != NO_ERROR)
-                return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
-              
-              nikss_action_param_free(&param);
-              param_exists = 1;
-              break;
-            }
-          }
-
-          if (!param_exists){
-            LOG(INFO) << "Param not found!";
-            return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
-          }
-        }
-        break;
-      }
-    }
-    // Add action to entry
-    nikss_table_entry_action(entry.get(), action_ctx.get());
+    // Add actions from request to entry
+    RETURN_IF_ERROR(nikss_interface_->AddActionsToEntry(table_entry, table, action,
+                                      action_ctx.get(), entry_ctx.get(), entry.get()));
 
     // Push table entry
-    int error_code = nikss_table_entry_add(entry_ctx.get(), entry.get());
-    if (error_code != NO_ERROR){
-      return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
-    else
-      LOG(INFO) << "Successfully added table " << nikss_name;
+    RETURN_IF_ERROR(nikss_interface_->PushTableEntry(table, entry_ctx.get(), entry.get()));
 
     // Cleanup
-    nikss_context_free(nikss_ctx.get());
-    nikss_table_entry_free(entry.get());
-    nikss_table_entry_ctx_free(entry_ctx.get());
-    nikss_action_free(action_ctx.get());
+    RETURN_IF_ERROR(nikss_interface_->Cleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
+                                      action_ctx.get()));
 
-
-  /*
-  if (!translated_table_entry.is_default_action()) {
-    if (table.is_const_table()) {
-      return MAKE_ERROR(ERR_PERMISSION_DENIED)
-             << "Can't write to table " << table.preamble().name()
-             << " because it has const entries.";
-    }*/
-    /*
-    ASSIGN_OR_RETURN(auto table_key,
-                     bf_sde_interface_->CreateTableKey(table_id));
-    RETURN_IF_ERROR(BuildTableKey(translated_table_entry, table_key.get()));
-
+/*
     ASSIGN_OR_RETURN(
         auto table_data,
         bf_sde_interface_->CreateTableData(
@@ -361,144 +264,6 @@ std::string ConvertToNikssName(std::string input_name){
 
   return ::util::OkStatus();
 }
-
-/*
-::util::StatusOr<std::unique_ptr<BfSdeInterface::TableKeyInterface>>
-TableKey::CreateTableKey(const bfrt::BfRtInfo* bfrt_info_, int table_id) {
-  const bfrt::BfRtTable* table;
-  RETURN_IF_BFRT_ERROR(bfrt_info_->bfrtTableFromIdGet(table_id, &table));
-  std::unique_ptr<bfrt::BfRtTableKey> table_key;
-  RETURN_IF_BFRT_ERROR(table->keyAllocate(&table_key));
-  auto key = std::unique_ptr<BfSdeInterface::TableKeyInterface>(
-      new TableKey(std::move(table_key)));
-  return key;
-}*/
-/*
-::util::StatusOr<::p4::v1::TableEntry> BfrtTableManager::BuildP4TableEntry(
-    const ::p4::v1::TableEntry& request, //table entry
-    const BfSdeInterface::TableKeyInterface* table_key,
-    const BfSdeInterface::TableDataInterface* table_data) {
-  ::p4::v1::TableEntry result;
-
-  ASSIGN_OR_RETURN(auto table,
-                   p4_info_manager_->FindTableByID(request.table_id()));
-  result.set_table_id(request.table_id());
-
-  bool has_priority_field = false;
-  // Match keys
-  for (const auto& expected_match_field : table.match_fields()) {
-    ::p4::v1::FieldMatch match;  // Added to the entry later.
-    match.set_field_id(expected_match_field.id());
-    switch (expected_match_field.match_type()) {
-      case ::p4::config::v1::MatchField::EXACT: {
-        RETURN_IF_ERROR(table_key->GetExact( //useless
-            expected_match_field.id(), match.mutable_exact()->mutable_value()));
-        /*if (!IsDontCareMatch(match.exact())) {
-          *result.add_match() = match;
-        }*//*
-        break;
-      }
-      case ::p4::config::v1::MatchField::TERNARY: {
-        has_priority_field = true;
-        std::string value, mask;
-        RETURN_IF_ERROR(
-            table_key->GetTernary(expected_match_field.id(), &value, &mask));
-        match.mutable_ternary()->set_value(value);
-        match.mutable_ternary()->set_mask(mask);
-        if (!IsDontCareMatch(match.ternary())) {
-          *result.add_match() = match;
-        }
-        break;
-      }
-      case ::p4::config::v1::MatchField::LPM: {
-        std::string prefix;
-        uint16 prefix_length;
-        RETURN_IF_ERROR(table_key->GetLpm(expected_match_field.id(), &prefix,
-                                          &prefix_length));
-        match.mutable_lpm()->set_value(prefix);
-        match.mutable_lpm()->set_prefix_len(prefix_length);
-        if (!IsDontCareMatch(match.lpm())) {
-          *result.add_match() = match;
-        }
-        break;
-      }
-      case ::p4::config::v1::MatchField::RANGE: { // not supported log
-        LOG(INFO) << "Error: RANGE type is not supported";
-        /*has_priority_field = true;
-        std::string low, high;
-        RETURN_IF_ERROR(
-            table_key->GetRange(expected_match_field.id(), &low, &high));
-        match.mutable_range()->set_low(low);
-        match.mutable_range()->set_high(high);
-        if (!IsDontCareMatch(match.range(), expected_match_field.bitwidth())) {
-          *result.add_match() = match;*//*
-        }
-        break;
-      }
-      default:
-        return MAKE_ERROR(ERR_INVALID_PARAM)
-               << "Invalid field match type "
-               << ::p4::config::v1::MatchField_MatchType_Name(
-                      expected_match_field.match_type())
-               << ".";
-    }
-  }
-
-  // Default actions do not have a priority, even when the table usually
-  // requires one. The SDE would return 0 (highest) which we must not translate.
-  if (request.is_default_action()) {
-    has_priority_field = false;
-  }
-
-  // Priority.
-  if (has_priority_field) {
-    uint32 bf_priority;
-    RETURN_IF_ERROR(table_key->GetPriority(&bf_priority));
-    ASSIGN_OR_RETURN(uint64 p4rt_priority,
-                     ConvertPriorityFromBfrtToP4rt(bf_priority));
-    result.set_priority(p4rt_priority);
-  }
-
-  // Action and action data
-  int action_id;
-  RETURN_IF_ERROR(table_data->GetActionId(&action_id));
-  // TODO(max): perform check if action id is valid for this table.
-  if (action_id) {
-    ASSIGN_OR_RETURN(auto action, p4_info_manager_->FindActionByID(action_id));
-    result.mutable_action()->mutable_action()->set_action_id(action_id);
-    for (const auto& expected_param : action.params()) {
-      std::string value;
-      RETURN_IF_ERROR(table_data->GetParam(expected_param.id(), &value));
-      auto* param = result.mutable_action()->mutable_action()->add_params();
-      param->set_param_id(expected_param.id());
-      param->set_value(value);
-    }
-  }
-
-  // Action profile member id
-  uint64 action_member_id;
-  if (table_data->GetActionMemberId(&action_member_id).ok()) {
-    result.mutable_action()->set_action_profile_member_id(action_member_id);
-  }
-
-  // Action profile group id
-  uint64 selector_group_id;
-  if (table_data->GetSelectorGroupId(&selector_group_id).ok()) {
-    result.mutable_action()->set_action_profile_group_id(selector_group_id);
-  }
-
-  // Counter data, if applicable.
-  uint64 bytes, packets;
-  if (request.has_counter_data() &&
-      table_data->GetCounterData(&bytes, &packets).ok()) {
-    result.mutable_counter_data()->set_byte_count(bytes);
-    result.mutable_counter_data()->set_packet_count(packets);
-  }
-
-  return result;
-}
-
-*/
 
 }  // namespace nikss
 }  // namespace hal

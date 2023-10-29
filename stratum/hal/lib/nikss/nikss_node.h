@@ -67,8 +67,6 @@ class NikssNode {
   // Not owned by this class.
   NikssInterface* nikss_interface_ = nullptr;
 
-  //NikssTableManager* nikss_table_manager_;
-
   // Helper class to validate the P4Info and requests against it.
   std::unique_ptr<P4InfoManager> p4_info_manager_ GUARDED_BY(lock_);
 
