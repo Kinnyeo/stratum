@@ -130,6 +130,14 @@ std::string InvertValue(std::string value){
     for (const auto& expected_match : table.match_fields()){
       for (auto match : request.match()){
         if (expected_match.id() == match.field_id()){
+
+          //typ klucza
+          //switch case, exact ternary lpm, default error
+
+          //jesli nie ma klucza ternary w entry to priorytet nie moze sie pojawic w table entry - po petli 
+          //nikss table entry priority
+
+          //kolejny pull request
           auto value = InvertValue(match.exact().value());
           LOG(INFO) << "Found match with name: " << expected_match.name()
                     << " and value: " << match.exact().value()
@@ -219,7 +227,7 @@ std::string InvertValue(std::string value){
     const ::p4::config::v1::Table table,
     nikss_table_entry_ctx_t* entry_ctx,
     nikss_table_entry_t* entry){
-
+      //switch case insert i modify
     // Push table entry
     int error_code = nikss_table_entry_add(entry_ctx, entry);
     if (error_code != NO_ERROR){ //kody errorow w p4runtime
