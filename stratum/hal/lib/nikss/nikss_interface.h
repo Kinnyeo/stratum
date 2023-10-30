@@ -128,7 +128,8 @@ class NikssInterface {
                                            nikss_table_entry_t* entry) = 0;
 
   // Push table entry
-  virtual ::util::Status PushTableEntry(const ::p4::config::v1::Table table,
+  virtual ::util::Status PushTableEntry(const ::p4::v1::Update::Type type,
+                                        const ::p4::config::v1::Table table,
                                         nikss_table_entry_ctx_t* entry_ctx,
                                         nikss_table_entry_t* entry) = 0;
 

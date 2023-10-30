@@ -28,34 +28,28 @@ class NikssWrapper : public NikssInterface {
                          const std::string& port_name);
   ::util::Status AddPipeline(int pipeline_id,
                          const std::string filepath) override;
-  ::util::Status ContextInit(
-                         nikss_context_t* nikss_ctx,
+  ::util::Status ContextInit(nikss_context_t* nikss_ctx,
                          nikss_table_entry_t* entry,
                          nikss_table_entry_ctx_t* entry_ctx,
                          nikss_action_t* action_ctx,
                          int node_id, std::string nikss_name);
-  ::util::Status AddMatchesToEntry(
-                         const ::p4::v1::TableEntry& request,
+  ::util::Status AddMatchesToEntry(const ::p4::v1::TableEntry& request,
                          const ::p4::config::v1::Table table,
                          nikss_table_entry_t* entry);
-  ::util::Status AddActionsToEntry(
-                         const ::p4::v1::TableEntry& request,
+  ::util::Status AddActionsToEntry(const ::p4::v1::TableEntry& request,
                          const ::p4::config::v1::Table table,
                          const ::p4::config::v1::Action action,
                          nikss_action_t* action_ctx,
                          nikss_table_entry_ctx_t* entry_ctx,
                          nikss_table_entry_t* entry);
-  ::util::Status PushTableEntry(
+  ::util::Status PushTableEntry(const ::p4::v1::Update::Type type,
                          const ::p4::config::v1::Table table,
                          nikss_table_entry_ctx_t* entry_ctx,
                          nikss_table_entry_t* entry);
-  ::util::Status Cleanup(
-                         nikss_context_t* nikss_ctx,
+  ::util::Status Cleanup(nikss_context_t* nikss_ctx,
                          nikss_table_entry_t* entry,
                          nikss_table_entry_ctx_t* entry_ctx,
                          nikss_action_t* action_ctx);
-
-  // add table entry - z nikss node
 
   static NikssWrapper* CreateSingleton() LOCKS_EXCLUDED(init_lock_);
 
@@ -76,7 +70,6 @@ class NikssWrapper : public NikssInterface {
 
 /*
   std::string ConvertToNikssName(std::string input_name);
-
   std::string InvertValue(std::string value);
 */
 

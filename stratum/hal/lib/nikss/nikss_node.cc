@@ -44,8 +44,6 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
   // SaveForwardingPipelineConfig + CommitForwardingPipelineConfig
   RETURN_IF_ERROR(SaveForwardingPipelineConfig(config));
 
-  //absl::WriterMutexLock l(&lock_);
-  //RET_CHECK(config.programs_size() == 1) << "Only one P4 program is supported.";
   auto p4_info = config.p4info();
   std::unique_ptr<P4InfoManager> p4_info_manager =
       absl::make_unique<P4InfoManager>(p4_info);
@@ -58,12 +56,6 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
 ::util::Status NikssNode::SaveForwardingPipelineConfig(
     const ::p4::v1::ForwardingPipelineConfig& config) {
   config_ = config;
-  /*P4PipelineConfig nikss_config;
-  LOG(INFO) << config.p4_name();
-
-  auto program = nikss_config.add_programs();
-  program->set_name(config.p4_name());
-  program->set_bfrt(config.bfruntime_info());*/
   return ::util::OkStatus();
 }
 
@@ -98,65 +90,21 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
       << "Request atomicity "
       << ::p4::v1::WriteRequest::Atomicity_Name(req.atomicity())
       << " is not supported.";
-      
-  /*
-  if (!initialized_ || !pipeline_initialized_) {
-    return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
-  }*/
-
-  LOG(INFO) << "WriteForwardingEntries";
 
   bool success = true;
   for (const auto& update : req.updates()) {
     ::util::Status status = ::util::OkStatus();
     switch (update.entity().entity_case()) {
-      case ::p4::v1::Entity::kTableEntry:
+      case ::p4::v1::Entity::kTableEntry: {
         status = WriteTableEntry(
             update.type(), update.entity().table_entry());
         break;
-      /*
-      case ::p4::v1::Entity::kExternEntry:
-        status = WriteExternEntry(session, update.type(),
-                                  update.entity().extern_entry());
-        break;
-      case ::p4::v1::Entity::kActionProfileMember:
-        status = nikss_table_manager_->WriteActionProfileMember(
-            session, update.type(), update.entity().action_profile_member());
-        break;
-      case ::p4::v1::Entity::kActionProfileGroup:
-        status = nikss_table_manager_->WriteActionProfileGroup(
-            session, update.type(), update.entity().action_profile_group());
-        break;
-      case ::p4::v1::Entity::kPacketReplicationEngineEntry:
-        status = nikss_table_manager_->WritePreEntry(
-            session, update.type(),
-            update.entity().packet_replication_engine_entry());
-        break;
-      case ::p4::v1::Entity::kDirectCounterEntry:
-        status = nikss_table_manager_->WriteDirectCounterEntry(
-            session, update.type(), update.entity().direct_counter_entry());
-        break;
-      case ::p4::v1::Entity::kCounterEntry:
-        status = bfrt_counter_manager_->WriteIndirectCounterEntry(
-            session, update.type(), update.entity().counter_entry());
-        break;
-      case ::p4::v1::Entity::kRegisterEntry: {
-        status = nikss_table_manager_->WriteRegisterEntry(
-            session, update.type(), update.entity().register_entry());
-        break;
       }
-      case ::p4::v1::Entity::kMeterEntry: {
-        status = nikss_table_manager_->WriteMeterEntry(
-            session, update.type(), update.entity().meter_entry());
-        break;
-      }
-      case ::p4::v1::Entity::kDirectMeterEntry:
-      case ::p4::v1::Entity::kValueSetEntry:
-      case ::p4::v1::Entity::kDigestEntry:   */
-      default:
+      default: {
         status = MAKE_ERROR(ERR_UNIMPLEMENTED)
                  << "Unsupported entity type: " << update.ShortDebugString();
         break;
+      }
     }
     success &= status.ok();
     results->push_back(status);
@@ -195,73 +143,40 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
     auto entry_ctx = absl::make_unique<nikss_table_entry_ctx_t>();
     auto action_ctx = absl::make_unique<nikss_action_t>();
 
+    ::util::Status status;
     // Init nikss contexts
-    RETURN_IF_ERROR(nikss_interface_->ContextInit(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
-                                      action_ctx.get(), node_id_, name));
+    status = nikss_interface_->ContextInit(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
+                                               action_ctx.get(), node_id_, name);
+    if (status != ::util::OkStatus()){
+      RETURN_IF_ERROR(nikss_interface_->Cleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
+                                      action_ctx.get()));
+    }
 
     // Add matches from request to entry
-    RETURN_IF_ERROR(nikss_interface_->AddMatchesToEntry(table_entry, table, entry.get()));
+    status = nikss_interface_->AddMatchesToEntry(table_entry, table, entry.get());
+    if (status != ::util::OkStatus()){
+      RETURN_IF_ERROR(nikss_interface_->Cleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
+                                      action_ctx.get()));
+    }
 
     // Add actions from request to entry
-    RETURN_IF_ERROR(nikss_interface_->AddActionsToEntry(table_entry, table, action,
-                                      action_ctx.get(), entry_ctx.get(), entry.get()));
-    //reczne sprawdzanie bledow -> cleanup
+    status = nikss_interface_->AddActionsToEntry(table_entry, table, action,
+                                      action_ctx.get(), entry_ctx.get(), entry.get());
+    if (status != ::util::OkStatus()){
+      RETURN_IF_ERROR(nikss_interface_->Cleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
+                                      action_ctx.get()));
+    }
 
     // Push table entry
-    RETURN_IF_ERROR(nikss_interface_->PushTableEntry(table, entry_ctx.get(), entry.get()));
+    status = nikss_interface_->PushTableEntry(type, table, entry_ctx.get(), entry.get());
+    if (status != ::util::OkStatus()){
+      RETURN_IF_ERROR(nikss_interface_->Cleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
+                                      action_ctx.get()));
+    }
 
     // Cleanup
     RETURN_IF_ERROR(nikss_interface_->Cleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
                                       action_ctx.get()));
-
-/*
-    ASSIGN_OR_RETURN(
-        auto table_data,
-        bf_sde_interface_->CreateTableData(
-            table_id, translated_table_entry.action().action().action_id()));
-    if (type == ::p4::v1::Update::INSERT || type == ::p4::v1::Update::MODIFY) {
-      RETURN_IF_ERROR(BuildTableData(translated_table_entry, table_data.get()));
-    }
-
-    switch (type) {
-      case ::p4::v1::Update::INSERT:
-        RETURN_IF_ERROR(bf_sde_interface_->InsertTableEntry(
-            device_, session, table_id, table_key.get(), table_data.get()));
-        break;
-      case ::p4::v1::Update::MODIFY:
-        RETURN_IF_ERROR(bf_sde_interface_->ModifyTableEntry(
-            device_, session, table_id, table_key.get(), table_data.get()));
-        break;
-      case ::p4::v1::Update::DELETE:
-        RETURN_IF_ERROR(bf_sde_interface_->DeleteTableEntry(
-            device_, session, table_id, table_key.get()));
-        break;
-      default:
-        return MAKE_ERROR(ERR_INTERNAL)
-               << "Unsupported update type: " << type << " in table entry "
-               << translated_table_entry.ShortDebugString() << ".";
-    }
-  } else {
-    RET_CHECK(type == ::p4::v1::Update::MODIFY)
-        << "The table default entry can only be modified.";
-    RET_CHECK(translated_table_entry.match_size() == 0)
-        << "Default action must not contain match fields.";
-    RET_CHECK(translated_table_entry.priority() == 0)
-        << "Default action must not contain a priority field.";
-
-    if (translated_table_entry.has_action()) {
-      ASSIGN_OR_RETURN(
-          auto table_data,
-          bf_sde_interface_->CreateTableData(
-              table_id, translated_table_entry.action().action().action_id()));
-      RETURN_IF_ERROR(BuildTableData(translated_table_entry, table_data.get()));
-      RETURN_IF_ERROR(bf_sde_interface_->SetDefaultTableEntry(
-          device_, session, table_id, table_data.get()));
-    } else {
-      RETURN_IF_ERROR(bf_sde_interface_->ResetDefaultTableEntry(
-          device_, session, table_id));
-    }
-  }*/
 
   return ::util::OkStatus();
 }
