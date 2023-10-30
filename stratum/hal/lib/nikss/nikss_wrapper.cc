@@ -127,30 +127,64 @@ std::string InvertValue(std::string value){
     nikss_table_entry_t* entry){
 
     // Finding matches from request in p4info file
+    bool ternary_exists = 0;
     for (const auto& expected_match : table.match_fields()){
       for (auto match : request.match()){
         if (expected_match.id() == match.field_id()){
 
-          //typ klucza
-          //switch case, exact ternary lpm, default error
+          nikss_match_key_t mk;
+          nikss_matchkey_init(&mk);
+          std::string value;
+
+          switch (expected_match.match_type()){
+            case ::p4::config::v1::MatchField::EXACT: {
+              auto exact_m = match.exact();
+              value = exact_m.value();
+              LOG(INFO) << "Found exact match with name: " << expected_match.name()
+                        << " and value: " << value;
+              nikss_matchkey_type(&mk, NIKSS_EXACT);
+              break;
+            }
+            case ::p4::config::v1::MatchField::TERNARY: {
+              ternary_exists = 1;
+              auto ternary_m = match.ternary();
+              value = ternary_m.value();
+              LOG(INFO) << "Found ternary match with name: " << expected_match.name()
+                        << ", value: " << value << " and mask: " << ternary_m.mask();
+              nikss_matchkey_type(&mk, NIKSS_TERNARY);
+              nikss_matchkey_mask(&mk, InvertValue(ternary_m.mask()).c_str(), ternary_m.mask().length());
+              break;
+            }
+            case ::p4::config::v1::MatchField::LPM: {
+              auto lpm_m = match.lpm();
+              value = lpm_m.value();
+              LOG(INFO) << "Found LPM match with name: " << expected_match.name()
+                        << ", value: " << value << " and prefix length: " << lpm_m.prefix_len();
+              nikss_matchkey_type(&mk, NIKSS_LPM);
+              nikss_matchkey_prefix_len(&mk, lpm_m.prefix_len());
+              break;
+            }
+            default: {
+              return MAKE_ERROR(ERR_NOT_INITIALIZED) << "RANGE match key not supported yet!";
+              break;
+            }
+          }
 
           //jesli nie ma klucza ternary w entry to priorytet nie moze sie pojawic w table entry - po petli 
           //nikss table entry priority
-
-          //kolejny pull request
-          auto value = InvertValue(match.exact().value());
-          LOG(INFO) << "Found match with name: " << expected_match.name()
-                    << " and value: " << match.exact().value()
-                    << ", length: " << value.length();
-          nikss_match_key_t mk;
-          nikss_matchkey_init(&mk);
-          nikss_matchkey_type(&mk, NIKSS_EXACT);
-
+          
+          /*
+          if (ternary_exists){
+            //halo gdzie ten priority
+          }
+          */
+          
+          value = InvertValue(value);
           int error_code = nikss_matchkey_data(&mk, value.c_str(), value.length());
           if (error_code != NO_ERROR){
-            return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!"; //do errorow - czyszczenie
+            return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
           }
-          
+
           error_code = nikss_table_entry_matchkey(entry, &mk);
           nikss_matchkey_free(&mk);
           if (error_code != NO_ERROR){
@@ -196,7 +230,6 @@ std::string InvertValue(std::string value){
               if (error_code != NO_ERROR){
                 return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Creating action parameter failed!";
                 nikss_action_param_free(&param);
-                //we wrapperze convert nikss name, i odwracanie kolejnosci bajtow -> protected 
               }
 
               error_code = nikss_action_param(action_ctx, &param);
@@ -204,7 +237,6 @@ std::string InvertValue(std::string value){
               if (error_code != NO_ERROR){
                 return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
               }
-              
               param_exists = 1;
               break;
             }
@@ -224,17 +256,36 @@ std::string InvertValue(std::string value){
 }
 
 ::util::Status NikssWrapper::PushTableEntry(
+    const ::p4::v1::Update::Type type,
     const ::p4::config::v1::Table table,
     nikss_table_entry_ctx_t* entry_ctx,
     nikss_table_entry_t* entry){
-      //switch case insert i modify
-    // Push table entry
-    int error_code = nikss_table_entry_add(entry_ctx, entry);
-    if (error_code != NO_ERROR){ //kody errorow w p4runtime
-      return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
-    } else {
-      auto name = table.preamble().name();
-      LOG(INFO) << "Successfully added table " << ConvertToNikssName(name);
+    
+    switch (type) {
+      case ::p4::v1::Update::INSERT: {
+        int error_code = nikss_table_entry_add(entry_ctx, entry);
+        if (error_code != NO_ERROR){
+          return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
+        } else {
+          auto name = table.preamble().name();
+          LOG(INFO) << "Successfully added table " << ConvertToNikssName(name);
+        }
+        break;
+      }
+      case ::p4::v1::Update::MODIFY: {
+        int error_code = nikss_table_entry_update(entry_ctx, entry);
+        if (error_code != NO_ERROR){
+          return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
+        } else {
+          auto name = table.preamble().name();
+          LOG(INFO) << "Successfully modified table " << ConvertToNikssName(name);
+        }
+        break;
+      }
+      default: {
+        return MAKE_ERROR(ERR_INTERNAL)
+               << "Unsupported update type: " << type << ".";
+      }
     }
     return ::util::OkStatus();
 }
@@ -253,58 +304,6 @@ std::string InvertValue(std::string value){
 
     return ::util::OkStatus();
 }
-
-
-/*
-    ASSIGN_OR_RETURN(
-        auto table_data,
-        bf_sde_interface_->CreateTableData(
-            table_id, translated_table_entry.action().action().action_id()));
-    if (type == ::p4::v1::Update::INSERT || type == ::p4::v1::Update::MODIFY) {
-      RETURN_IF_ERROR(BuildTableData(translated_table_entry, table_data.get()));
-    }
-
-    switch (type) {
-      case ::p4::v1::Update::INSERT:
-        RETURN_IF_ERROR(bf_sde_interface_->InsertTableEntry(
-            device_, session, table_id, table_key.get(), table_data.get()));
-        break;
-      case ::p4::v1::Update::MODIFY:
-        RETURN_IF_ERROR(bf_sde_interface_->ModifyTableEntry(
-            device_, session, table_id, table_key.get(), table_data.get()));
-        break;
-      case ::p4::v1::Update::DELETE:
-        RETURN_IF_ERROR(bf_sde_interface_->DeleteTableEntry(
-            device_, session, table_id, table_key.get()));
-        break;
-      default:
-        return MAKE_ERROR(ERR_INTERNAL)
-               << "Unsupported update type: " << type << " in table entry "
-               << translated_table_entry.ShortDebugString() << ".";
-    }
-  } else {
-    RET_CHECK(type == ::p4::v1::Update::MODIFY)
-        << "The table default entry can only be modified.";
-    RET_CHECK(translated_table_entry.match_size() == 0)
-        << "Default action must not contain match fields.";
-    RET_CHECK(translated_table_entry.priority() == 0)
-        << "Default action must not contain a priority field.";
-
-    if (translated_table_entry.has_action()) {
-      ASSIGN_OR_RETURN(
-          auto table_data,
-          bf_sde_interface_->CreateTableData(
-              table_id, translated_table_entry.action().action().action_id()));
-      RETURN_IF_ERROR(BuildTableData(translated_table_entry, table_data.get()));
-      RETURN_IF_ERROR(bf_sde_interface_->SetDefaultTableEntry(
-          device_, session, table_id, table_data.get()));
-    } else {
-      RETURN_IF_ERROR(bf_sde_interface_->ResetDefaultTableEntry(
-          device_, session, table_id));
-    }
-  }*/
-
-  //return ::util::OkStatus();
 
 NikssWrapper* NikssWrapper::CreateSingleton() {
   absl::WriterMutexLock l(&init_lock_);
