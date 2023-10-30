@@ -205,6 +205,7 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
     // Add actions from request to entry
     RETURN_IF_ERROR(nikss_interface_->AddActionsToEntry(table_entry, table, action,
                                       action_ctx.get(), entry_ctx.get(), entry.get()));
+    //reczne sprawdzanie bledow -> cleanup
 
     // Push table entry
     RETURN_IF_ERROR(nikss_interface_->PushTableEntry(table, entry_ctx.get(), entry.get()));
