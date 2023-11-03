@@ -26,10 +26,8 @@ class NikssChassisManager {
 
   virtual ::util::Status PushChassisConfig(const ChassisConfig& config)
       EXCLUSIVE_LOCKS_REQUIRED(chassis_lock);
-      
-  //virtual ::util::StatusOr<const PortConfig> GetPortConfig() const;
   
-  virtual ::util::StatusOr<std::map<uint32, PortConfig>> GetPortConfig() const;
+  virtual ::util::StatusOr<std::map<uint64, std::map<uint32, PortConfig>>> GetPortConfig() const;
 
   // Factory function for creating the instance of the class.
   static std::unique_ptr<NikssChassisManager> CreateInstance(
@@ -46,12 +44,10 @@ class NikssChassisManager {
   // class.
   NikssChassisManager(PhalInterface* phal_interface, NikssInterface* nikss_interface);
 
-  //add port
   ::util::Status AddPortHelper(NikssInterface* nikss_interface_, uint64 node_id,
   												const std::string& port_name);
 
-
-  std::map<uint32, PortConfig> chassis_config_;
+  std::map<uint64, std::map<uint32, PortConfig>> chassis_config_;
 
   bool initialized_ GUARDED_BY(chassis_lock);
 
@@ -61,8 +57,6 @@ class NikssChassisManager {
   // Pointer to a NikssInterface implementation that wraps all the SDE calls.
   // Not owned by this class.
   NikssInterface* nikss_interface_ = nullptr;
-  
-//  std::map<uint32, PortConfig>
 };
 
 }  // namespace nikss

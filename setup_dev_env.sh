@@ -146,7 +146,4 @@ if [ "$NIKSS_SWITCH" == YES ]; then
 fi
 DOCKER_RUN_OPTIONS="$DOCKER_RUN_OPTIONS $@"
 
-#docker run $DOCKER_RUN_OPTIONS $IMAGE_NAME bash
-
-docker run $DOCKER_RUN_OPTIONS --name dok -p 9559:9559 $IMAGE_NAME bash
-
+docker run $DOCKER_RUN_OPTIONS $IMAGE_NAME bash
