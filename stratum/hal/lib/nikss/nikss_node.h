@@ -10,7 +10,6 @@
 #include "stratum/hal/lib/nikss/nikss_interface.h"
 #include "stratum/hal/lib/nikss/nikss_chassis_manager.h"
 #include "stratum/hal/lib/p4/p4_info_manager.h"
-//wrapper include
 
 namespace stratum {
 namespace hal {
