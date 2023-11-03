@@ -165,34 +165,31 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
               break;
             }
             default: {
-              return MAKE_ERROR(ERR_NOT_INITIALIZED) << "RANGE match key not supported yet!";
-              break;
+              return MAKE_ERROR(ERR_INVALID_PARAM) << "RANGE match key not supported yet!";
             }
           }
           
           value = SwapBytesOrder(value);
           int error_code = nikss_matchkey_data(&mk, value.c_str(), value.length());
           if (error_code != NO_ERROR){
-            return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
+            return MAKE_ERROR(ERR_INTERNAL) << "Adding data to key failed!";
           }
 
           error_code = nikss_table_entry_matchkey(entry, &mk);
           nikss_matchkey_free(&mk);
           if (error_code != NO_ERROR){
-            return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
+            return MAKE_ERROR(ERR_INTERNAL) << "Adding key to table entry failed!";
           }
           break;
         }
       }
     }
-    //jesli nie ma klucza ternary w entry to priorytet nie moze sie pojawic w table entry - po petli 
-    //nikss table entry priority
-          
-    /*
-    if (ternary_key_exists){
-      //halo gdzie ten priority
+    auto priority = request.priority();
+    if (!ternary_key_exists && priority != 0){
+      return MAKE_ERROR(ERR_INVALID_PARAM) << "Priority provided without TERNARY key!";
+    } else if (ternary_key_exists && priority == 0){
+      return MAKE_ERROR(ERR_INVALID_PARAM) << "Priority not provided with TERNARY key!";
     }
-    */
 
     return ::util::OkStatus();
 }
@@ -228,14 +225,14 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
 
               int error_code = nikss_action_param_create(&param, value.c_str(), value.length());
               if (error_code != NO_ERROR){
-                return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Creating action parameter failed!";
+                return MAKE_ERROR(ERR_INTERNAL) << "Creating action parameter failed!";
                 nikss_action_param_free(&param);
               }
 
               error_code = nikss_action_param(action_ctx, &param);
               nikss_action_param_free(&param);
               if (error_code != NO_ERROR){
-                return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
+                return MAKE_ERROR(ERR_INTERNAL) << "Setting action parameter failed!";
               }
               param_exists = 1;
               break;
@@ -243,8 +240,7 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
           }
 
           if (!param_exists){
-            LOG(INFO) << "Param not found!";
-            return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
+            return MAKE_ERROR(ERR_INVALID_PARAM) << "Parameter not found!";
           }
         }
         break;
@@ -265,7 +261,7 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
       case ::p4::v1::Update::INSERT: {
         int error_code = nikss_table_entry_add(entry_ctx, entry);
         if (error_code != NO_ERROR){
-          return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!"; //barefoot
+          return MAKE_ERROR(ERR_INTERNAL) << "Inserting table entry failed!";
         } else {
           auto name = table.preamble().name();
           LOG(INFO) << "Successfully added table " << ConvertToNikssName(name);
@@ -275,7 +271,7 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
       case ::p4::v1::Update::MODIFY: {
         int error_code = nikss_table_entry_update(entry_ctx, entry);
         if (error_code != NO_ERROR){
-          return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
+          return MAKE_ERROR(ERR_INTERNAL) << "Modifying table entry failed!";
         } else {
           auto name = table.preamble().name();
           LOG(INFO) << "Successfully modified table " << ConvertToNikssName(name);

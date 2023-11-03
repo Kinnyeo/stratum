@@ -86,7 +86,6 @@ NikssSwitch::~NikssSwitch() {}
 
   //absl::ReaderMutexLock l(&chassis_lock);
   ASSIGN_OR_RETURN(auto* nikss_node, GetNikssNodeFromNodeId(req.device_id()));
-  LOG(INFO) << "Test1";
   return nikss_node->WriteForwardingEntries(req, results);
 }
 
@@ -155,6 +154,6 @@ std::unique_ptr<NikssSwitch> NikssSwitch::CreateInstance(
   return node;
 }
 
-}  // namespace bmv2
+}  // namespace stratum
 }  // namespace hal
 }  // namespace nikss
