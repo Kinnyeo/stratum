@@ -68,6 +68,7 @@ class NikssWrapper : public NikssInterface {
   // The singleton instance.
   static NikssWrapper* singleton_ GUARDED_BY(init_lock_);
 
+  // Auxiliary functions
   std::string ConvertToNikssName(std::string input_name);
   std::string SwapBytesOrder(std::string value);
 
