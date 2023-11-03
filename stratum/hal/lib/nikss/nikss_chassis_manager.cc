@@ -51,7 +51,6 @@ std::unique_ptr<NikssChassisManager> NikssChassisManager::CreateInstance(
     auto node_id = singleton_port.node();
     chassis_config[node_id][port.port_id] = port;
   }
-
   chassis_config_ = chassis_config;
   
   return status;
