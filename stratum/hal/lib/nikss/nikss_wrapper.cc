@@ -83,7 +83,6 @@ NikssWrapper::NikssWrapper() {}
     return ::util::OkStatus();
   }
 
-  // FIXME: file is not removed if the load() fails
   RETURN_IF_NIKSS_ERROR(nikss_pipeline_load(ctx.get(), tmp_filepath.c_str()));
   
   RemoveFile(tmp_filepath);
