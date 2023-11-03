@@ -93,12 +93,12 @@ NikssWrapper::NikssWrapper() {}
   return ::util::OkStatus();
 }
 
-std::string ConvertToNikssName(std::string input_name){
+std::string NikssWrapper::ConvertToNikssName(std::string input_name){
     std::replace(input_name.begin(), input_name.end(), '.', '_');
     return input_name;
 }
 
-std::string InvertValue(std::string value){
+std::string NikssWrapper::SwapBytesOrder(std::string value){
     std::reverse(value.begin(), value.end()); 
     return value;
 }
@@ -127,7 +127,7 @@ std::string InvertValue(std::string value){
     nikss_table_entry_t* entry){
 
     // Finding matches from request in p4info file
-    bool ternary_exists = 0;
+    bool ternary_key_exists = 0;
     for (const auto& expected_match : table.match_fields()){
       for (auto match : request.match()){
         if (expected_match.id() == match.field_id()){
@@ -146,13 +146,13 @@ std::string InvertValue(std::string value){
               break;
             }
             case ::p4::config::v1::MatchField::TERNARY: {
-              ternary_exists = 1;
+              ternary_key_exists = 1;
               auto ternary_m = match.ternary();
               value = ternary_m.value();
               LOG(INFO) << "Found ternary match with name: " << expected_match.name()
                         << ", value: " << value << " and mask: " << ternary_m.mask();
               nikss_matchkey_type(&mk, NIKSS_TERNARY);
-              nikss_matchkey_mask(&mk, InvertValue(ternary_m.mask()).c_str(), ternary_m.mask().length());
+              nikss_matchkey_mask(&mk, SwapBytesOrder(ternary_m.mask()).c_str(), ternary_m.mask().length()); //errory
               break;
             }
             case ::p4::config::v1::MatchField::LPM: {
@@ -169,17 +169,8 @@ std::string InvertValue(std::string value){
               break;
             }
           }
-
-          //jesli nie ma klucza ternary w entry to priorytet nie moze sie pojawic w table entry - po petli 
-          //nikss table entry priority
           
-          /*
-          if (ternary_exists){
-            //halo gdzie ten priority
-          }
-          */
-          
-          value = InvertValue(value);
+          value = SwapBytesOrder(value);
           int error_code = nikss_matchkey_data(&mk, value.c_str(), value.length());
           if (error_code != NO_ERROR){
             return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
@@ -194,6 +185,15 @@ std::string InvertValue(std::string value){
         }
       }
     }
+    //jesli nie ma klucza ternary w entry to priorytet nie moze sie pojawic w table entry - po petli 
+    //nikss table entry priority
+          
+    /*
+    if (ternary_key_exists){
+      //halo gdzie ten priority
+    }
+    */
+
     return ::util::OkStatus();
 }
 
@@ -222,7 +222,7 @@ std::string InvertValue(std::string value){
             if (request_param.param_id() == param_id){
               LOG(INFO) << "Param value: " << request_param.value();
 
-              auto value = InvertValue(request_param.value());
+              auto value = SwapBytesOrder(request_param.value());
               LOG(INFO) << "length: "<< value.length();
               nikss_action_param_t param;
 
@@ -265,7 +265,7 @@ std::string InvertValue(std::string value){
       case ::p4::v1::Update::INSERT: {
         int error_code = nikss_table_entry_add(entry_ctx, entry);
         if (error_code != NO_ERROR){
-          return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!";
+          return MAKE_ERROR(ERR_NOT_INITIALIZED) << "Not initialized!"; //barefoot
         } else {
           auto name = table.preamble().name();
           LOG(INFO) << "Successfully added table " << ConvertToNikssName(name);

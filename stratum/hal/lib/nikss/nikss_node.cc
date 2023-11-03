@@ -148,35 +148,39 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
     status = nikss_interface_->ContextInit(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
                                                action_ctx.get(), node_id_, name);
     if (status != ::util::OkStatus()){
-      RETURN_IF_ERROR(nikss_interface_->Cleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
-                                      action_ctx.get()));
+      nikss_interface_->Cleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
+                                      action_ctx.get());
+      return status;
     }
 
     // Add matches from request to entry
     status = nikss_interface_->AddMatchesToEntry(table_entry, table, entry.get());
     if (status != ::util::OkStatus()){
-      RETURN_IF_ERROR(nikss_interface_->Cleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
-                                      action_ctx.get()));
+      nikss_interface_->Cleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
+                                      action_ctx.get());
+      return status;
     }
 
     // Add actions from request to entry
     status = nikss_interface_->AddActionsToEntry(table_entry, table, action,
                                       action_ctx.get(), entry_ctx.get(), entry.get());
     if (status != ::util::OkStatus()){
-      RETURN_IF_ERROR(nikss_interface_->Cleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
-                                      action_ctx.get()));
+      nikss_interface_->Cleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
+                                      action_ctx.get());
+      return status;
     }
 
     // Push table entry
     status = nikss_interface_->PushTableEntry(type, table, entry_ctx.get(), entry.get());
     if (status != ::util::OkStatus()){
-      RETURN_IF_ERROR(nikss_interface_->Cleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
-                                      action_ctx.get()));
+      nikss_interface_->Cleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
+                                      action_ctx.get());
+      return status;
     }
 
     // Cleanup
-    RETURN_IF_ERROR(nikss_interface_->Cleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
-                                      action_ctx.get()));
+    nikss_interface_->Cleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
+                                      action_ctx.get());
 
   return ::util::OkStatus();
 }
