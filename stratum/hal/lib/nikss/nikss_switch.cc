@@ -93,6 +93,7 @@ NikssSwitch::~NikssSwitch() {}
     const ::p4::v1::ReadRequest& req,
     WriterInterface<::p4::v1::ReadResponse>* writer,
     std::vector<::util::Status>* details) {
+      //table get
   return ::util::OkStatus();
 }
 
