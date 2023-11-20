@@ -4,8 +4,13 @@
 #include <string>
 
 #include "absl/synchronization/mutex.h"
+#include "absl/types/optional.h"
 #include "stratum/glue/status/status.h"
+#include "p4/v1/p4runtime.pb.h"
 #include "stratum/hal/lib/nikss/nikss_interface.h"
+extern "C" {
+#include "nikss/nikss.h"
+}
 
 namespace stratum {
 namespace hal {
@@ -22,6 +27,25 @@ class NikssWrapper : public NikssInterface {
                          const std::string& port_name);
   ::util::Status AddPipeline(int pipeline_id,
                          const std::string filepath) override;
+  ::util::Status ContextInit(nikss_context_t* nikss_ctx,
+                             nikss_counter_context_t* counter_ctx,
+                             nikss_counter_entry_t* nikss_counter,
+                             int node_id, std::string nikss_name);
+  ::util::StatusOr<::p4::v1::CounterEntry> ReadCounterEntry(
+                              nikss_counter_entry_t* nikss_counter,
+                              nikss_counter_type_t counter_type);
+  ::util::Status ReadSingleCounterEntry(
+                              const ::p4::v1::CounterEntry& counter_entry,
+                              nikss_counter_entry_t* nikss_counter,
+                              nikss_counter_context_t* counter_ctx,
+                              WriterInterface<::p4::v1::ReadResponse>* writer);
+  ::util::Status ReadAllCounterEntries(
+                              const ::p4::v1::CounterEntry& counter_entry,
+                              nikss_counter_context_t* counter_ctx,
+                              WriterInterface<::p4::v1::ReadResponse>* writer);
+  ::util::Status Cleanup(nikss_context_t* nikss_ctx,
+                         nikss_counter_context_t* counter_ctx,
+                         nikss_counter_entry_t* nikss_counter);
 
   static NikssWrapper* CreateSingleton() LOCKS_EXCLUDED(init_lock_);
 
@@ -39,6 +63,10 @@ class NikssWrapper : public NikssInterface {
 
   // The singleton instance.
   static NikssWrapper* singleton_ GUARDED_BY(init_lock_);
+
+  // Auxiliary functions
+  std::string ConvertToNikssName(std::string input_name);
+  std::string SwapBytesOrder(std::string value);
 
  private:
 

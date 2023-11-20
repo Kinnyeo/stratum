@@ -85,7 +85,13 @@ NikssSwitch::~NikssSwitch() {}
     const ::p4::v1::ReadRequest& req,
     WriterInterface<::p4::v1::ReadResponse>* writer,
     std::vector<::util::Status>* details) {
-  return ::util::OkStatus();
+
+  RET_CHECK(req.device_id()) << "No device_id in ReadRequest.";
+  RET_CHECK(writer) << "Channel writer must be non-null.";
+  RET_CHECK(details) << "Details pointer must be non-null.";
+
+  ASSIGN_OR_RETURN(auto* nikss_node, GetNikssNodeFromNodeId(req.device_id()));
+  return nikss_node->ReadForwardingEntries(req, writer, details);
 }
 
 ::util::Status NikssSwitch::RegisterStreamMessageResponseWriter(

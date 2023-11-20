@@ -9,6 +9,8 @@
 
 #include "stratum/hal/lib/nikss/nikss_interface.h"
 #include "stratum/hal/lib/nikss/nikss_chassis_manager.h"
+#include "stratum/hal/lib/p4/p4_info_manager.h"
+#include "stratum/hal/lib/common/writer_interface.h"
 
 namespace stratum {
 namespace hal {
@@ -27,6 +29,13 @@ class NikssNode {
   	  std::map<uint64, std::map<uint32, NikssChassisManager::PortConfig>> chassis_config) LOCKS_EXCLUDED(lock_);
   virtual ::util::Status VerifyForwardingPipelineConfig(
       const ::p4::v1::ForwardingPipelineConfig& config) const;
+  virtual ::util::Status ReadForwardingEntries(
+      const ::p4::v1::ReadRequest& req,
+      WriterInterface<::p4::v1::ReadResponse>* writer,
+      std::vector<::util::Status>* details) LOCKS_EXCLUDED(lock_);
+  virtual ::util::Status ReadIndirectCounterEntry(
+      const ::p4::v1::CounterEntry& counter_entry,
+      WriterInterface<::p4::v1::ReadResponse>* writer) LOCKS_EXCLUDED(lock_);
 
   // Factory function for creating the instance of the class.
   static std::unique_ptr<NikssNode> CreateInstance(
@@ -56,6 +65,9 @@ class NikssNode {
   // Pointer to a NikssInterface implementation that wraps all the SDE calls.
   // Not owned by this class.
   NikssInterface* nikss_interface_ = nullptr;
+
+  // Helper class to validate the P4Info and requests against it.
+  std::unique_ptr<P4InfoManager> p4_info_manager_ GUARDED_BY(lock_);
 
   // Logical node ID corresponding to the node/pipeline managed by this class
   // instance.
