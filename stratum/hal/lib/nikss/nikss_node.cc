@@ -88,14 +88,6 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
   bool success = true;
   for (const auto& entity : req.entities()) {
     switch (entity.entity_case()) {
-      /*
-      case ::p4::v1::Entity::kTableEntry: {
-        auto status = bfrt_table_manager_->ReadTableEntry(
-            session, entity.table_entry(), writer);
-        success &= status.ok();
-        details->push_back(status);
-        break;
-      }*/
       case ::p4::v1::Entity::kCounterEntry: {
         auto status = ReadIndirectCounterEntry(
             entity.counter_entry(), writer);
