@@ -192,6 +192,10 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
     LOG(INFO) << "Counter with index: " << index << ".";
     ASSIGN_OR_RETURN(auto result, ReadCounterEntry(iter, counter_type));
     // TODO: Retrieve key directly from counter
+    /* In this case we're using variable "index" instead of retrieving it
+    directly, because returned structure is "TableArray", that contains
+    index with the same values as we provide here, but also unnecessary
+    data that needs to be parsed at first. */
     result.mutable_index()->set_index(index);
     // FIXME: Index 0 is not setting correctly
     nikss_counter_entry_free(iter);
