@@ -10,6 +10,7 @@
 #include "stratum/hal/lib/nikss/nikss_interface.h"
 #include "stratum/hal/lib/nikss/nikss_chassis_manager.h"
 #include "stratum/hal/lib/p4/p4_info_manager.h"
+#include "stratum/hal/lib/common/writer_interface.h"
 
 namespace stratum {
 namespace hal {
@@ -34,6 +35,13 @@ class NikssNode {
   virtual ::util::Status WriteTableEntry(
       const ::p4::v1::Update::Type type,
       const ::p4::v1::TableEntry& table_entry) LOCKS_EXCLUDED(lock_);
+  virtual ::util::Status ReadForwardingEntries(
+      const ::p4::v1::ReadRequest& req,
+      WriterInterface<::p4::v1::ReadResponse>* writer,
+      std::vector<::util::Status>* details) LOCKS_EXCLUDED(lock_);
+  virtual ::util::Status ReadIndirectCounterEntry(
+      const ::p4::v1::CounterEntry& counter_entry,
+      WriterInterface<::p4::v1::ReadResponse>* writer) LOCKS_EXCLUDED(lock_);
 
   // Factory function for creating the instance of the class.
   static std::unique_ptr<NikssNode> CreateInstance(

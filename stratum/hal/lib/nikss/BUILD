@@ -60,6 +60,7 @@ stratum_cc_library(
         "//stratum/glue/status",
         "//stratum/glue/status:statusor",
         "//stratum/hal/lib/common:common_cc_proto",
+		"//stratum/hal/lib/common:writer_interface",
         "//stratum/hal/lib/common:utils",
         "//stratum/lib/channel",
         "@com_google_absl//absl/base:core_headers",
