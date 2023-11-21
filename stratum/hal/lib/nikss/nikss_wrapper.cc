@@ -189,12 +189,13 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
   unsigned int index = 0;
   ::p4::v1::ReadResponse resp;
   while ((iter = nikss_counter_get_next(counter_ctx)) != NULL) {
-    LOG(INFO) << "Counter with index: " << index++ << ".";
+    LOG(INFO) << "Counter with index: " << index << ".";
     ASSIGN_OR_RETURN(auto result, ReadCounterEntry(iter, counter_type));
     // TODO: Retrieve key directly from counter
     result.mutable_index()->set_index(index);
     nikss_counter_entry_free(iter);
     *resp.add_entities()->mutable_counter_entry() = result;
+    index++;
   }
   LOG(INFO) << "Response: \n" << resp.DebugString();
   if (!writer->Write(resp)) {
