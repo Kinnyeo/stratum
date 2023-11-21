@@ -193,6 +193,7 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
     ASSIGN_OR_RETURN(auto result, ReadCounterEntry(iter, counter_type));
     // TODO: Retrieve key directly from counter
     result.mutable_index()->set_index(index);
+    // FIXME: Index 0 is not setting correctly
     nikss_counter_entry_free(iter);
     *resp.add_entities()->mutable_counter_entry() = result;
     index++;

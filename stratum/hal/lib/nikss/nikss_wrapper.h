@@ -22,30 +22,30 @@ class NikssWrapper : public NikssInterface {
  public:
   // NikssInterface public methods.
   ::util::Status AddPort(int pipeline_id,
-                         const std::string& port_name);
+      const std::string& port_name);
   ::util::Status DelPort(int pipeline_id,
-                         const std::string& port_name);
+      const std::string& port_name);
   ::util::Status AddPipeline(int pipeline_id,
-                         const std::string filepath) override;
+      const std::string filepath) override;
   ::util::Status ContextInit(nikss_context_t* nikss_ctx,
-                             nikss_counter_context_t* counter_ctx,
-                             nikss_counter_entry_t* nikss_counter,
-                             int node_id, std::string nikss_name);
+      nikss_counter_context_t* counter_ctx, 
+      nikss_counter_entry_t* nikss_counter, int node_id, 
+      std::string nikss_name);
   ::util::StatusOr<::p4::v1::CounterEntry> ReadCounterEntry(
-                              nikss_counter_entry_t* nikss_counter,
-                              nikss_counter_type_t counter_type);
+      nikss_counter_entry_t* nikss_counter,
+      nikss_counter_type_t counter_type);
   ::util::Status ReadSingleCounterEntry(
-                              const ::p4::v1::CounterEntry& counter_entry,
-                              nikss_counter_entry_t* nikss_counter,
-                              nikss_counter_context_t* counter_ctx,
-                              WriterInterface<::p4::v1::ReadResponse>* writer);
+      const ::p4::v1::CounterEntry& counter_entry,
+      nikss_counter_entry_t* nikss_counter,
+      nikss_counter_context_t* counter_ctx,
+      WriterInterface<::p4::v1::ReadResponse>* writer);
   ::util::Status ReadAllCounterEntries(
-                              const ::p4::v1::CounterEntry& counter_entry,
-                              nikss_counter_context_t* counter_ctx,
-                              WriterInterface<::p4::v1::ReadResponse>* writer);
+      const ::p4::v1::CounterEntry& counter_entry,
+      nikss_counter_context_t* counter_ctx,
+      WriterInterface<::p4::v1::ReadResponse>* writer);
   ::util::Status Cleanup(nikss_context_t* nikss_ctx,
-                         nikss_counter_context_t* counter_ctx,
-                         nikss_counter_entry_t* nikss_counter);
+      nikss_counter_context_t* counter_ctx,
+      nikss_counter_entry_t* nikss_counter);
 
   static NikssWrapper* CreateSingleton() LOCKS_EXCLUDED(init_lock_);
 
