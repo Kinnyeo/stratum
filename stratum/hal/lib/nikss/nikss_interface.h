@@ -79,6 +79,21 @@ class NikssInterface {
       nikss_table_entry_ctx_t* entry_ctx,
       nikss_table_entry_t* entry) = 0;
 
+  virtual ::util::StatusOr<::p4::v1::TableEntry> ReadTableEntry(
+      const ::p4::v1::TableEntry& request,
+      const ::p4::config::v1::Table table) = 0;
+
+  virtual ::util::Status ReadSingleTable(
+      const ::p4::v1::TableEntry& table_entry,
+      const ::p4::config::v1::Table table,
+      nikss_context_t* nikss_ctx,
+      nikss_table_entry_t* entry,
+      nikss_table_entry_ctx_t* entry_ctx,
+      nikss_action_t* action_ctx,
+      WriterInterface<::p4::v1::ReadResponse>* writer,
+      std::map<std::string, uint32> table_actions,
+      bool has_match_key) = 0;
+
   // Cleanup Table
   virtual ::util::Status TableCleanup(nikss_context_t* nikss_ctx,
       nikss_table_entry_t* entry,

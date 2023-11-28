@@ -39,6 +39,9 @@ class NikssNode {
       const ::p4::v1::ReadRequest& req,
       WriterInterface<::p4::v1::ReadResponse>* writer,
       std::vector<::util::Status>* details) LOCKS_EXCLUDED(lock_);
+  virtual ::util::Status ReadTableEntry(
+        const ::p4::v1::TableEntry& table_entry,
+        WriterInterface<::p4::v1::ReadResponse>* writer) LOCKS_EXCLUDED(lock_);
   virtual ::util::Status ReadIndirectCounterEntry(
       const ::p4::v1::CounterEntry& counter_entry,
       WriterInterface<::p4::v1::ReadResponse>* writer) LOCKS_EXCLUDED(lock_);

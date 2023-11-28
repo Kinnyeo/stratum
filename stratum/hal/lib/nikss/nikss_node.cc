@@ -197,6 +197,13 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
   bool success = true;
   for (const auto& entity : req.entities()) {
     switch (entity.entity_case()) {
+      case ::p4::v1::Entity::kTableEntry: {
+        auto status = ReadTableEntry(
+            entity.table_entry(), writer);
+        success &= status.ok();
+        details->push_back(status);
+        break;
+      }
       case ::p4::v1::Entity::kCounterEntry: {
         auto status = ReadIndirectCounterEntry(
             entity.counter_entry(), writer);
@@ -218,6 +225,74 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
            << "One or more read operations failed.";
   }
   return ::util::OkStatus();
+}
+
+::util::Status NikssNode::ReadTableEntry(
+    const ::p4::v1::TableEntry& table_entry,
+    WriterInterface<::p4::v1::ReadResponse>* writer) {
+
+    auto table_id = table_entry.table_id();
+    if (table_id == 0){
+      return MAKE_ERROR(ERR_OPER_NOT_SUPPORTED)
+             << "Querying a table without table id is not supported.";
+    }
+    
+    auto nikss_ctx = absl::make_unique<nikss_context_t>();
+    auto entry = absl::make_unique<nikss_table_entry_t>();
+    auto entry_ctx = absl::make_unique<nikss_table_entry_ctx_t>();
+    auto action_ctx = absl::make_unique<nikss_action_t>();
+    ::util::Status status;
+
+    ASSIGN_OR_RETURN(auto table, p4_info_manager_->FindTableByID(
+                                   table_id));
+
+    auto name = table.preamble().name();
+    LOG(INFO) << "New request table with id: " 
+              << table_id << " and name: " << name;
+
+    std::map<std::string, uint32> table_actions;
+    for (const auto& p4info_action : table.action_refs()){
+      uint32 id = p4info_action.id();
+      ASSIGN_OR_RETURN(auto action, p4_info_manager_->FindActionByID(id));
+      std::string name = action.preamble().name();
+      
+      table_actions[name] = id;
+    }
+
+    // Init nikss contexts
+    status = nikss_interface_->TableContextInit(nikss_ctx.get(), entry.get(), 
+                                                entry_ctx.get(), action_ctx.get(), 
+                                                node_id_, name);
+    if (status != ::util::OkStatus()){
+      nikss_interface_->TableCleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
+                                      action_ctx.get());
+      return status;
+    }
+
+    // Check if match key is provided
+    bool has_match_key = table_entry.match_size() != 0;
+
+    // Add matches from request to entry if match key is provided
+    if (has_match_key){
+      status = nikss_interface_->AddMatchesToEntry(table_entry, table, entry.get());
+      if (status != ::util::OkStatus()){
+        nikss_interface_->TableCleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
+                                        action_ctx.get());
+        return status;
+      }
+    }
+
+    status == nikss_interface_->ReadSingleTable(table_entry, table, nikss_ctx.get(), 
+                                                entry.get(), entry_ctx.get(), 
+                                                action_ctx.get(), writer,
+                                                table_actions, has_match_key);
+    if (status != ::util::OkStatus()){
+      nikss_interface_->TableCleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
+                                      action_ctx.get());
+      return status;
+    }
+
+    return ::util::OkStatus();
 }
 
 ::util::Status NikssNode::ReadIndirectCounterEntry(

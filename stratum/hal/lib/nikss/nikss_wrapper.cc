@@ -301,10 +301,59 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
     }
     return ::util::OkStatus();
 }
-    
+
+::util::StatusOr<::p4::v1::TableEntry> NikssWrapper::ReadTableEntry(
+    const ::p4::v1::TableEntry& request,
+    const ::p4::config::v1::Table table){
+
+  ::p4::v1::TableEntry result;
+  result.set_table_id(request.table_id());
+  
+  for (auto match : request.match()){
+      *result.add_match() = match;
+  }
+
+  return result;
+}
+
+::util::Status NikssWrapper::ReadSingleTable(
+    const ::p4::v1::TableEntry& table_entry,
+    const ::p4::config::v1::Table table,
+    nikss_context_t* nikss_ctx,
+    nikss_table_entry_t* entry,
+    nikss_table_entry_ctx_t* entry_ctx,
+    nikss_action_t* action_ctx,
+    WriterInterface<::p4::v1::ReadResponse>* writer,
+    std::map<std::string, uint32> table_actions,
+    bool has_match_key){
+  
+  ::p4::v1::TableEntry result;
+  ::p4::v1::ReadResponse resp;
+  if (!has_match_key){
+    LOG(INFO) << "No match key provided. Reading all entries from table.";
+    /*for (...){
+      ReadTableEntry();
+    }*/
+  } else {
+    if (nikss_table_entry_get(entry_ctx, entry) != NO_ERROR) {
+      return MAKE_ERROR(ERR_INTERNAL) << "Retrieving table entry failed!";
+    }
+    ASSIGN_OR_RETURN(result, ReadTableEntry(table_entry, table));
+  }
+
+  *resp.add_entities()->mutable_table_entry() = result;
+  LOG(INFO) << "Response: " << resp.DebugString();
+  if (!writer->Write(resp)) {
+    return MAKE_ERROR(ERR_INTERNAL) << "Write to stream for failed.";
+  }
+
+  return ::util::OkStatus();
+}
+  
 ::util::StatusOr<::p4::v1::CounterEntry> NikssWrapper::ReadCounterEntry(
     nikss_counter_entry_t* nikss_counter,
     nikss_counter_type_t counter_type){
+
   ::p4::v1::CounterEntry result;
   if (counter_type == NIKSS_COUNTER_TYPE_BYTES) {
       nikss_counter_value_t bytes_value = nikss_counter_entry_get_bytes(nikss_counter);
