@@ -313,6 +313,11 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
       *result.add_match() = match;
   }
 
+  LOG(INFO) << request.action().action().action_id();
+  /*for (auto action : request.action()){
+    LOG(INFO) << action.action_id();
+  }*/
+
   return result;
 }
 
@@ -339,6 +344,23 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
       return MAKE_ERROR(ERR_INTERNAL) << "Retrieving table entry failed!";
     }
     ASSIGN_OR_RETURN(result, ReadTableEntry(table_entry, table));
+  }
+
+  uint32_t action_id = nikss_action_get_id(entry);
+  const char *action_name = nikss_action_get_name(entry_ctx, action_id);
+  LOG(INFO) << "action name: " << action_name << ", id: " << table_actions[action_name];
+
+  nikss_action_param_t *ap = NULL;
+  while ((ap = nikss_action_param_get_next(entry)) != NULL) {
+    //nikss_action_param_get_data(ap),
+    //nikss_action_param_get_data_len(ap);
+    //const char *name = nikss_action_param_get_name(entry_ctx, entry, ap);
+
+    result.mutable_action()->mutable_action()->set_action_id(table_actions[action_name]);
+    auto* param = result.mutable_action()->mutable_action()->add_params();
+    param->set_param_id(ap -> param_id);
+    param->set_value(SwapBytesOrder(ap -> data));
+    nikss_action_param_free(ap);
   }
 
   *resp.add_entities()->mutable_table_entry() = result;

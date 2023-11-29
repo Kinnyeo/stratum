@@ -184,6 +184,11 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
     return ::util::OkStatus();
 }
 
+std::string NikssNode::ConvertToNikssName(std::string input_name){
+    std::replace(input_name.begin(), input_name.end(), '.', '_');
+    return input_name;
+}
+
 ::util::Status NikssNode::ReadForwardingEntries(
     const ::p4::v1::ReadRequest& req,
     WriterInterface<::p4::v1::ReadResponse>* writer,
@@ -254,7 +259,7 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
     for (const auto& p4info_action : table.action_refs()){
       uint32 id = p4info_action.id();
       ASSIGN_OR_RETURN(auto action, p4_info_manager_->FindActionByID(id));
-      std::string name = action.preamble().name();
+      std::string name = ConvertToNikssName(action.preamble().name());
       
       table_actions[name] = id;
     }

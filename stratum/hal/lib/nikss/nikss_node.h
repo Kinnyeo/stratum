@@ -61,6 +61,9 @@ class NikssNode {
   // Default constructor. To be called by the Mock class instance only.
   NikssNode();
 
+  // Auxiliary functions
+  std::string ConvertToNikssName(std::string input_name);
+
  private:
   // Private constructor. Use CreateInstance() to create an instance of this
   // class.
