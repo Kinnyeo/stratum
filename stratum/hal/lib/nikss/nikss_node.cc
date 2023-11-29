@@ -287,9 +287,9 @@ std::string NikssNode::ConvertToNikssName(std::string input_name){
       }
     }
 
-    status == nikss_interface_->ReadSingleTable(table_entry, table, nikss_ctx.get(), 
+    status == nikss_interface_->ReadSingleTable(table_entry, table,
                                                 entry.get(), entry_ctx.get(), 
-                                                action_ctx.get(), writer,
+                                                writer,
                                                 table_actions, has_match_key);
     if (status != ::util::OkStatus()){
       nikss_interface_->TableCleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 

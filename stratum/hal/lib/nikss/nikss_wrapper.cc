@@ -304,19 +304,68 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
 
 ::util::StatusOr<::p4::v1::TableEntry> NikssWrapper::ReadTableEntry(
     const ::p4::v1::TableEntry& request,
-    const ::p4::config::v1::Table table){
+    const ::p4::config::v1::Table table,
+    nikss_table_entry_t* entry,
+    nikss_table_entry_ctx_t* entry_ctx,
+    std::map<std::string, uint32> table_actions){
 
   ::p4::v1::TableEntry result;
   result.set_table_id(request.table_id());
   
-  for (auto match : request.match()){
+  /*for (auto match : request.match()){
       *result.add_match() = match;
+  }*/
+
+  nikss_match_key_t *mk = NULL;
+  while ((mk = nikss_table_entry_get_next_matchkey(entry)) != NULL) {
+    ::p4::v1::FieldMatch match;
+    bool has_priority_field = false;
+    match.set_field_id(entry->current_match_key_id);
+    std::string match_value((const char*) nikss_matchkey_get_data(mk), nikss_matchkey_get_data_size(mk));
+    std::string match_mask((const char*) nikss_matchkey_get_mask(mk), nikss_matchkey_get_mask_size(mk));
+    switch (nikss_matchkey_get_type(mk)) {
+      case NIKSS_EXACT: {
+        match.mutable_exact()->set_value(match_value);
+        break;
+      }
+      case NIKSS_TERNARY: {
+        match.mutable_ternary()->set_value(match_value);
+        match.mutable_ternary()->set_mask(match_mask);
+        has_priority_field = true;
+        break;
+      }
+      case NIKSS_LPM: {
+        match.mutable_lpm()->set_value(match_value);
+        match.mutable_lpm()->set_prefix_len(nikss_matchkey_get_prefix_len(mk));
+        break;
+      }
+      default: {
+        return MAKE_ERROR(ERR_INVALID_PARAM)
+               << "Invalid field match type.";
+      }
+    }
+    *result.add_match() = match;
+    if (has_priority_field){
+      result.set_priority(nikss_table_entry_get_priority(entry));
+    }
+    nikss_matchkey_free(mk);
   }
 
-  LOG(INFO) << request.action().action().action_id();
-  /*for (auto action : request.action()){
-    LOG(INFO) << action.action_id();
-  }*/
+  uint32_t action_id = nikss_action_get_id(entry);
+  const char *action_name = nikss_action_get_name(entry_ctx, action_id);
+  LOG(INFO) << "Action name: " << action_name << ", ID: " << table_actions[action_name];
+
+  int index = 1;
+  nikss_action_param_t *ap = NULL;
+  while ((ap = nikss_action_param_get_next(entry)) != NULL) {
+    result.mutable_action()->mutable_action()->set_action_id(table_actions[action_name]);
+    // error - nie ma nazwy
+    auto* param = result.mutable_action()->mutable_action()->add_params();
+    std::string param_value((const char*) nikss_action_param_get_data(ap), nikss_action_param_get_data_len(ap));
+    param->set_param_id(index++);
+    param->set_value(SwapBytesOrder(param_value));
+    nikss_action_param_free(ap);
+  }
 
   return result;
 }
@@ -324,10 +373,8 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
 ::util::Status NikssWrapper::ReadSingleTable(
     const ::p4::v1::TableEntry& table_entry,
     const ::p4::config::v1::Table table,
-    nikss_context_t* nikss_ctx,
     nikss_table_entry_t* entry,
     nikss_table_entry_ctx_t* entry_ctx,
-    nikss_action_t* action_ctx,
     WriterInterface<::p4::v1::ReadResponse>* writer,
     std::map<std::string, uint32> table_actions,
     bool has_match_key){
@@ -336,6 +383,13 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
   ::p4::v1::ReadResponse resp;
   if (!has_match_key){
     LOG(INFO) << "No match key provided. Reading all entries from table.";
+    nikss_table_entry_t *iter = NULL;
+    while ((iter = nikss_table_entry_get_next(entry_ctx)) != NULL) {
+      ASSIGN_OR_RETURN(result, ReadTableEntry(table_entry, table, iter,
+                                            entry_ctx, table_actions));
+      nikss_table_entry_free(iter);
+      *resp.add_entities()->mutable_table_entry() = result;
+    }
     /*for (...){
       ReadTableEntry();
     }*/
@@ -343,27 +397,11 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
     if (nikss_table_entry_get(entry_ctx, entry) != NO_ERROR) {
       return MAKE_ERROR(ERR_INTERNAL) << "Retrieving table entry failed!";
     }
-    ASSIGN_OR_RETURN(result, ReadTableEntry(table_entry, table));
+    ASSIGN_OR_RETURN(result, ReadTableEntry(table_entry, table, entry,
+                                            entry_ctx, table_actions));
+    *resp.add_entities()->mutable_table_entry() = result;
   }
 
-  uint32_t action_id = nikss_action_get_id(entry);
-  const char *action_name = nikss_action_get_name(entry_ctx, action_id);
-  LOG(INFO) << "action name: " << action_name << ", id: " << table_actions[action_name];
-
-  nikss_action_param_t *ap = NULL;
-  while ((ap = nikss_action_param_get_next(entry)) != NULL) {
-    //nikss_action_param_get_data(ap),
-    //nikss_action_param_get_data_len(ap);
-    //const char *name = nikss_action_param_get_name(entry_ctx, entry, ap);
-
-    result.mutable_action()->mutable_action()->set_action_id(table_actions[action_name]);
-    auto* param = result.mutable_action()->mutable_action()->add_params();
-    param->set_param_id(ap -> param_id);
-    param->set_value(SwapBytesOrder(ap -> data));
-    nikss_action_param_free(ap);
-  }
-
-  *resp.add_entities()->mutable_table_entry() = result;
   LOG(INFO) << "Response: " << resp.DebugString();
   if (!writer->Write(resp)) {
     return MAKE_ERROR(ERR_INTERNAL) << "Write to stream for failed.";
