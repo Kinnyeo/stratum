@@ -312,17 +312,16 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
   ::p4::v1::TableEntry result;
   result.set_table_id(request.table_id());
   
-  /*for (auto match : request.match()){
-      *result.add_match() = match;
-  }*/
-
+  int index = 1;
+  bool has_priority_field = false;
   nikss_match_key_t *mk = NULL;
   while ((mk = nikss_table_entry_get_next_matchkey(entry)) != NULL) {
     ::p4::v1::FieldMatch match;
-    bool has_priority_field = false;
-    match.set_field_id(entry->current_match_key_id);
+    match.set_field_id(index++);
     std::string match_value((const char*) nikss_matchkey_get_data(mk), nikss_matchkey_get_data_size(mk));
     std::string match_mask((const char*) nikss_matchkey_get_mask(mk), nikss_matchkey_get_mask_size(mk));
+    //trim
+    //swap
     switch (nikss_matchkey_get_type(mk)) {
       case NIKSS_EXACT: {
         match.mutable_exact()->set_value(match_value);
@@ -345,21 +344,24 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
       }
     }
     *result.add_match() = match;
-    if (has_priority_field){
-      result.set_priority(nikss_table_entry_get_priority(entry));
-    }
     nikss_matchkey_free(mk);
+  }
+  if (has_priority_field){
+    result.set_priority(nikss_table_entry_get_priority(entry));
   }
 
   uint32_t action_id = nikss_action_get_id(entry);
   const char *action_name = nikss_action_get_name(entry_ctx, action_id);
   LOG(INFO) << "Action name: " << action_name << ", ID: " << table_actions[action_name];
+  if (table_actions.count(action_name) == 0){
+    return MAKE_ERROR(ERR_INVALID_P4_INFO)
+            << "Action " << action_name << " not found in P4info.";
+  }
+  result.mutable_action()->mutable_action()->set_action_id(table_actions[action_name]);
 
-  int index = 1;
+  index = 1;
   nikss_action_param_t *ap = NULL;
   while ((ap = nikss_action_param_get_next(entry)) != NULL) {
-    result.mutable_action()->mutable_action()->set_action_id(table_actions[action_name]);
-    // error - nie ma nazwy
     auto* param = result.mutable_action()->mutable_action()->add_params();
     std::string param_value((const char*) nikss_action_param_get_data(ap), nikss_action_param_get_data_len(ap));
     param->set_param_id(index++);
@@ -390,9 +392,6 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
       nikss_table_entry_free(iter);
       *resp.add_entities()->mutable_table_entry() = result;
     }
-    /*for (...){
-      ReadTableEntry();
-    }*/
   } else {
     if (nikss_table_entry_get(entry_ctx, entry) != NO_ERROR) {
       return MAKE_ERROR(ERR_INTERNAL) << "Retrieving table entry failed!";
