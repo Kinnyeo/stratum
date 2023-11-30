@@ -102,6 +102,12 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
     return value;
 }
 
+int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
+  float temp;
+  temp = bitwidth / 8.0;
+  return (int) std::ceil(temp);
+}
+
 ::util::Status NikssWrapper::TableContextInit(
     nikss_context_t* nikss_ctx,
     nikss_table_entry_t* entry,
@@ -307,7 +313,7 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
     const ::p4::config::v1::Table table,
     nikss_table_entry_t* entry,
     nikss_table_entry_ctx_t* entry_ctx,
-    std::map<std::string, uint32> table_actions){
+    std::map<std::string, std::pair<uint32, vector<int32>>> table_actions){
 
   ::p4::v1::TableEntry result;
   result.set_table_id(request.table_id());
@@ -317,11 +323,14 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
   nikss_match_key_t *mk = NULL;
   while ((mk = nikss_table_entry_get_next_matchkey(entry)) != NULL) {
     ::p4::v1::FieldMatch match;
-    match.set_field_id(index++);
+    match.set_field_id(index);
+
     std::string match_value((const char*) nikss_matchkey_get_data(mk), nikss_matchkey_get_data_size(mk));
     std::string match_mask((const char*) nikss_matchkey_get_mask(mk), nikss_matchkey_get_mask_size(mk));
-    //trim
-    //swap
+    int bit = ConvertBitwidthToSize(table.match_fields()[index-1].bitwidth());
+    match_value = SwapBytesOrder(match_value.substr(0, bit));
+    match_mask = SwapBytesOrder(match_mask.substr(0, bit));
+
     switch (nikss_matchkey_get_type(mk)) {
       case NIKSS_EXACT: {
         match.mutable_exact()->set_value(match_value);
@@ -345,6 +354,7 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
     }
     *result.add_match() = match;
     nikss_matchkey_free(mk);
+    index++;
   }
   if (has_priority_field){
     result.set_priority(nikss_table_entry_get_priority(entry));
@@ -352,18 +362,20 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
 
   uint32_t action_id = nikss_action_get_id(entry);
   const char *action_name = nikss_action_get_name(entry_ctx, action_id);
-  LOG(INFO) << "Action name: " << action_name << ", ID: " << table_actions[action_name];
+  LOG(INFO) << "Action name: " << action_name << ", ID: " << table_actions[action_name].first;
   if (table_actions.count(action_name) == 0){
     return MAKE_ERROR(ERR_INVALID_P4_INFO)
             << "Action " << action_name << " not found in P4info.";
   }
-  result.mutable_action()->mutable_action()->set_action_id(table_actions[action_name]);
+  result.mutable_action()->mutable_action()->set_action_id(table_actions[action_name].first);
 
   index = 1;
   nikss_action_param_t *ap = NULL;
   while ((ap = nikss_action_param_get_next(entry)) != NULL) {
     auto* param = result.mutable_action()->mutable_action()->add_params();
     std::string param_value((const char*) nikss_action_param_get_data(ap), nikss_action_param_get_data_len(ap));
+
+    param_value = SwapBytesOrder(param_value.substr(0, bit));
     param->set_param_id(index++);
     param->set_value(SwapBytesOrder(param_value));
     nikss_action_param_free(ap);
@@ -378,7 +390,7 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
     nikss_table_entry_t* entry,
     nikss_table_entry_ctx_t* entry_ctx,
     WriterInterface<::p4::v1::ReadResponse>* writer,
-    std::map<std::string, uint32> table_actions,
+    std::map<std::string, std::pair<uint32, vector<int32>>> table_actions,
     bool has_match_key){
   
   ::p4::v1::TableEntry result;

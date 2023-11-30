@@ -51,14 +51,14 @@ class NikssWrapper : public NikssInterface {
       const ::p4::config::v1::Table table,
       nikss_table_entry_t* entry,
       nikss_table_entry_ctx_t* entry_ctx,
-      std::map<std::string, uint32> table_actions);
+      std::map<std::string, std::pair<uint32, vector<int32>>> table_actions);
   ::util::Status ReadSingleTable(
       const ::p4::v1::TableEntry& table_entry,
       const ::p4::config::v1::Table table,
       nikss_table_entry_t* entry,
       nikss_table_entry_ctx_t* entry_ctx,
       WriterInterface<::p4::v1::ReadResponse>* writer,
-      std::map<std::string, uint32> table_actions,
+      std::map<std::string, std::pair<uint32, vector<int32>>> table_actions,
       bool has_match_key);
   ::util::Status TableCleanup(nikss_context_t* nikss_ctx,
       nikss_table_entry_t* entry,
@@ -105,6 +105,7 @@ class NikssWrapper : public NikssInterface {
   // Auxiliary functions
   std::string ConvertToNikssName(std::string input_name);
   std::string SwapBytesOrder(std::string value);
+  int ConvertBitwidthToSize(int bitwidth);
 
  private:
 

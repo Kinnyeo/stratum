@@ -255,13 +255,17 @@ std::string NikssNode::ConvertToNikssName(std::string input_name){
     LOG(INFO) << "New request table with id: " 
               << table_id << " and name: " << name;
 
-    std::map<std::string, uint32> table_actions;
+    std::map<std::string, std::pair<uint32, vector<int32>>> table_actions;
     for (const auto& p4info_action : table.action_refs()){
       uint32 id = p4info_action.id();
       ASSIGN_OR_RETURN(auto action, p4_info_manager_->FindActionByID(id));
       std::string name = ConvertToNikssName(action.preamble().name());
-      
-      table_actions[name] = id;
+      vector<int32> bitwidths;
+      for (auto bitwidth : action.params()){
+        bitwidths.push_back(bitwidth.bitwidth());
+      }
+      std::pair params = std::make_pair(id, bitwidths);
+      table_actions[name] = params;
     }
 
     // Init nikss contexts
