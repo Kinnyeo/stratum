@@ -63,7 +63,8 @@ class NikssInterface {
   // Add matches from request to entry
   virtual ::util::Status AddMatchesToEntry(const ::p4::v1::TableEntry& request,
       const ::p4::config::v1::Table table,
-      nikss_table_entry_t* entry) = 0;
+      nikss_table_entry_t* entry,
+      uint8_t type) = 0;
 
   // Add actions from request to entry
   virtual ::util::Status AddActionsToEntry(const ::p4::v1::TableEntry& request,
@@ -74,7 +75,7 @@ class NikssInterface {
       nikss_table_entry_t* entry) = 0;
 
   // Push table entry
-  virtual ::util::Status PushTableEntry(const ::p4::v1::Update::Type type,
+  virtual ::util::Status PushTableEntry(uint8_t type,
       const ::p4::config::v1::Table table,
       nikss_table_entry_ctx_t* entry_ctx,
       nikss_table_entry_t* entry) = 0;

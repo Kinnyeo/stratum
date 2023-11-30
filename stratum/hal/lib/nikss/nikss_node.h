@@ -12,6 +12,11 @@
 #include "stratum/hal/lib/p4/p4_info_manager.h"
 #include "stratum/hal/lib/common/writer_interface.h"
 
+#define READ_ENTRY 0
+#define INSERT_ENTRY 1
+#define MODIFY_ENTRY 2
+#define DELETE_ENTRY 3
+
 namespace stratum {
 namespace hal {
 namespace nikss {

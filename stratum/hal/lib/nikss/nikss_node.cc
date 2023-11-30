@@ -118,7 +118,7 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
 }
 
 ::util::Status NikssNode::WriteTableEntry(
-    const ::p4::v1::Update::Type type,
+    const ::p4::v1::Update::Type update_type,
     const ::p4::v1::TableEntry& table_entry) {
 
   auto table_id = table_entry.table_id();
@@ -140,6 +140,18 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
   auto entry_ctx = absl::make_unique<nikss_table_entry_ctx_t>();
   auto action_ctx = absl::make_unique<nikss_action_t>();
 
+  // Cast Update type to int
+  uint8_t type = 0;
+  if (update_type == ::p4::v1::Update::INSERT){
+    type = INSERT_ENTRY;
+  } else if (update_type == ::p4::v1::Update::MODIFY){
+    type = MODIFY_ENTRY;
+  } else if (update_type == ::p4::v1::Update::DELETE){
+    type = DELETE_ENTRY;
+  } else {
+    return MAKE_ERROR(ERR_INTERNAL) << "Not a correct update type.";
+  }
+
   ::util::Status status;
   // Init nikss contexts
   status = nikss_interface_->TableContextInit(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
@@ -151,7 +163,7 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
   }
 
   // Add matches from request to entry
-  status = nikss_interface_->AddMatchesToEntry(table_entry, table, entry.get());
+  status = nikss_interface_->AddMatchesToEntry(table_entry, table, entry.get(), type);
   if (status != ::util::OkStatus()){
     nikss_interface_->TableCleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
                                     action_ctx.get());
@@ -159,12 +171,14 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
   }
 
   // Add actions from request to entry
-  status = nikss_interface_->AddActionsToEntry(table_entry, table, action,
-                                    action_ctx.get(), entry_ctx.get(), entry.get());
-  if (status != ::util::OkStatus()){
-    nikss_interface_->TableCleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
-                                    action_ctx.get());
-    return status;
+  if (type == (INSERT_ENTRY || MODIFY_ENTRY)){ // Not neccessary to add actions on DETELE request
+    status = nikss_interface_->AddActionsToEntry(table_entry, table, action,
+                                      action_ctx.get(), entry_ctx.get(), entry.get());
+    if (status != ::util::OkStatus()){
+      nikss_interface_->TableCleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
+                                      action_ctx.get());
+      return status;
+    }
   }
 
   // Push table entry
@@ -281,7 +295,7 @@ std::string NikssNode::ConvertToNikssName(std::string input_name){
 
   // Add matches from request to entry if match key is provided
   if (has_match_key){
-    status = nikss_interface_->AddMatchesToEntry(table_entry, table, entry.get());
+    status = nikss_interface_->AddMatchesToEntry(table_entry, table, entry.get(), READ_ENTRY);
     if (status != ::util::OkStatus()){
       nikss_interface_->TableCleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
                                       action_ctx.get());

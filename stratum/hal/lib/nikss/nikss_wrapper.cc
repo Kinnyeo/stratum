@@ -49,7 +49,7 @@ NikssWrapper::NikssWrapper() {}
   int port_id = -1;
   LOG(INFO) << "Adding port " << port_name << " to pipeline " << pipeline_id << ".";
   RETURN_IF_NIKSS_ERROR(nikss_pipeline_add_port(ctx.get(), port_name.c_str(), &port_id));
-  LOG(INFO) << "Port added with port_id=" << port_id << ".";
+  LOG(INFO) << "Port added with port_id: " << port_id << ".";
   nikss_context_free(ctx.get());
   
   return ::util::OkStatus();
@@ -144,7 +144,8 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
 ::util::Status NikssWrapper::AddMatchesToEntry(
     const ::p4::v1::TableEntry& request,
     const ::p4::config::v1::Table table,
-    nikss_table_entry_t* entry){
+    nikss_table_entry_t* entry,
+    uint8_t type){
   // Finding matches from request in p4info file
   bool ternary_key_exists = 0;
   for (const auto& expected_match : table.match_fields()){
@@ -204,13 +205,14 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
     }
   }
 
-  auto priority = request.priority();
-  if (!ternary_key_exists && priority != 0){
-    return MAKE_ERROR(ERR_INVALID_PARAM) << "Priority provided without TERNARY key!";
-  } else if (ternary_key_exists && priority == 0){
-    return MAKE_ERROR(ERR_INVALID_PARAM) << "Priority not provided with TERNARY key!";
+  if (type == (INSERT_ENTRY || MODIFY_ENTRY)){
+    auto priority = request.priority();
+    if (!ternary_key_exists && priority != 0){
+      return MAKE_ERROR(ERR_INVALID_PARAM) << "Priority provided without TERNARY key!";
+    } else if (ternary_key_exists && priority == 0){
+      return MAKE_ERROR(ERR_INVALID_PARAM) << "Priority not provided with TERNARY key!";
+    }
   }
-
   return ::util::OkStatus();
 }
 
@@ -271,29 +273,35 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
 }
 
 ::util::Status NikssWrapper::PushTableEntry(
-    const ::p4::v1::Update::Type type,
+    uint8_t type,
     const ::p4::config::v1::Table table,
     nikss_table_entry_ctx_t* entry_ctx,
     nikss_table_entry_t* entry){
   switch (type) {
-    case ::p4::v1::Update::INSERT: {
+    case INSERT_ENTRY: {
       int error_code = nikss_table_entry_add(entry_ctx, entry);
       if (error_code != NO_ERROR){
         return MAKE_ERROR(ERR_INTERNAL) << "Inserting table entry failed!";
-      } else {
-        auto name = table.preamble().name();
-        LOG(INFO) << "Successfully added table " << ConvertToNikssName(name);
       }
+      auto name = table.preamble().name();
+      LOG(INFO) << "Successfully added table " << ConvertToNikssName(name) << ".";
       break;
     }
-    case ::p4::v1::Update::MODIFY: {
+    case MODIFY_ENTRY: {
       int error_code = nikss_table_entry_update(entry_ctx, entry);
       if (error_code != NO_ERROR){
         return MAKE_ERROR(ERR_INTERNAL) << "Modifying table entry failed!";
-      } else {
-        auto name = table.preamble().name();
-        LOG(INFO) << "Successfully modified table " << ConvertToNikssName(name);
       }
+      auto name = table.preamble().name();
+      LOG(INFO) << "Successfully modified table " << ConvertToNikssName(name) << ".";
+      break;
+    }
+    case DELETE_ENTRY: {
+      int error_code = nikss_table_entry_del(entry_ctx, entry);
+      if (error_code != NO_ERROR){
+        return MAKE_ERROR(ERR_INTERNAL) << "Removing table entry failed!";
+      }
+      LOG(INFO) << "Successfully removed table.";
       break;
     }
     default: {
