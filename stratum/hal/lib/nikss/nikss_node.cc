@@ -263,7 +263,7 @@ std::string NikssNode::ConvertToNikssName(std::string input_name){
   LOG(INFO) << "New request table with id: " 
             << table_id << " and name: " << name;
 
-  std::map<std::string, ActionData> table_actions;
+  std::map<std::string, NikssInterface::ActionData> table_actions;
   for (const auto& p4info_action : table.action_refs()){
     uint32 id = p4info_action.id();
     ASSIGN_OR_RETURN(auto action, p4_info_manager_->FindActionByID(id));
@@ -272,9 +272,9 @@ std::string NikssNode::ConvertToNikssName(std::string input_name){
     for (auto bitwidth : action.params()){
       bitwidths.push_back(bitwidth.bitwidth());
     }
-    ActionData data = {
-      .action_id = id;
-      .bitwidths = bitwidths;
+    NikssInterface::ActionData data = {
+      .action_id = id,
+      .bitwidths = bitwidths,
     };
     table_actions[name] = data;
   }

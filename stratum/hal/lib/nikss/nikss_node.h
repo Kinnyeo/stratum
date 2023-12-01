@@ -20,11 +20,6 @@ class NikssNode {
  public:
   virtual ~NikssNode();
 
-  struct ActionDataT {
-    uint32 action_id;
-    std::vector<int32> bitwidths;
-  };
-
   virtual ::util::Status PushForwardingPipelineConfig(
       const ::p4::v1::ForwardingPipelineConfig& config,
       std::map<uint64, std::map<uint32, NikssChassisManager::PortConfig>> chassis_config);

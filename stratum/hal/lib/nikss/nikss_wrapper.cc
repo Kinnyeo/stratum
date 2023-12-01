@@ -122,22 +122,6 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
   return ::util::OkStatus();
 }
 
-::util::Status NikssWrapper::CounterContextInit(
-    nikss_context_t* nikss_ctx,
-    nikss_counter_context_t* counter_ctx,
-    nikss_counter_entry_t* nikss_counter,
-    int node_id, std::string name){
-  nikss_context_init(nikss_ctx);
-  nikss_counter_ctx_init(counter_ctx);
-  nikss_counter_entry_init(nikss_counter);
-  nikss_context_set_pipeline(nikss_ctx, static_cast<nikss_pipeline_id_t>(node_id));
-
-  std::string nikss_name = ConvertToNikssName(name);
-  nikss_counter_ctx_name(nikss_ctx, counter_ctx, nikss_name.c_str());
-
-  return ::util::OkStatus();
-}
-
 ::util::Status NikssWrapper::AddMatchesToEntry(
     const ::p4::v1::TableEntry& request,
     const ::p4::config::v1::Table table,
@@ -315,7 +299,7 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
     const ::p4::config::v1::Table table,
     nikss_table_entry_t* entry,
     nikss_table_entry_ctx_t* entry_ctx,
-    std::map<std::string, ActionData> table_actions){
+    std::map<std::string, NikssInterface::ActionData> table_actions){
   ::p4::v1::TableEntry result;
   result.set_table_id(request.table_id());
   
@@ -394,7 +378,7 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
     nikss_table_entry_t* entry,
     nikss_table_entry_ctx_t* entry_ctx,
     WriterInterface<::p4::v1::ReadResponse>* writer,
-    std::map<std::string, ActionData> table_actions,
+    std::map<std::string, NikssInterface::ActionData> table_actions,
     bool has_match_key){
   ::p4::v1::TableEntry result;
   ::p4::v1::ReadResponse resp;
@@ -420,6 +404,35 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
   if (!writer->Write(resp)) {
     return MAKE_ERROR(ERR_INTERNAL) << "Write to stream for failed.";
   }
+  return ::util::OkStatus();
+}
+
+::util::Status NikssWrapper::TableCleanup(
+    nikss_context_t* nikss_ctx,
+    nikss_table_entry_t* entry,
+    nikss_table_entry_ctx_t* entry_ctx,
+    nikss_action_t* action_ctx){
+  // Cleanup
+  nikss_context_free(nikss_ctx);
+  nikss_table_entry_free(entry);
+  nikss_table_entry_ctx_free(entry_ctx);
+  nikss_action_free(action_ctx);
+
+  return ::util::OkStatus();
+}
+
+::util::Status NikssWrapper::CounterContextInit(
+    nikss_context_t* nikss_ctx,
+    nikss_counter_context_t* counter_ctx,
+    nikss_counter_entry_t* nikss_counter,
+    int node_id, std::string name){
+  nikss_context_init(nikss_ctx);
+  nikss_counter_ctx_init(counter_ctx);
+  nikss_counter_entry_init(nikss_counter);
+  nikss_context_set_pipeline(nikss_ctx, static_cast<nikss_pipeline_id_t>(node_id));
+  std::string nikss_name = ConvertToNikssName(name);
+  nikss_counter_ctx_name(nikss_ctx, counter_ctx, nikss_name.c_str());
+
   return ::util::OkStatus();
 }
   
@@ -507,20 +520,6 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
   if (!writer->Write(resp)) {
     return MAKE_ERROR(ERR_INTERNAL) << "Write to stream for failed.";
   }
-  return ::util::OkStatus();
-}
-
-::util::Status NikssWrapper::TableCleanup(
-    nikss_context_t* nikss_ctx,
-    nikss_table_entry_t* entry,
-    nikss_table_entry_ctx_t* entry_ctx,
-    nikss_action_t* action_ctx){
-  // Cleanup
-  nikss_context_free(nikss_ctx);
-  nikss_table_entry_free(entry);
-  nikss_table_entry_ctx_free(entry_ctx);
-  nikss_action_free(action_ctx);
-
   return ::util::OkStatus();
 }
 
