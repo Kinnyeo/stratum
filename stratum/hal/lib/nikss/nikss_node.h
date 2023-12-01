@@ -19,7 +19,7 @@ namespace nikss {
 class NikssNode {
  public:
   virtual ~NikssNode();
- 
+
   virtual ::util::Status PushForwardingPipelineConfig(
       const ::p4::v1::ForwardingPipelineConfig& config,
       std::map<uint64, std::map<uint32, NikssChassisManager::PortConfig>> chassis_config);
@@ -39,6 +39,9 @@ class NikssNode {
       const ::p4::v1::ReadRequest& req,
       WriterInterface<::p4::v1::ReadResponse>* writer,
       std::vector<::util::Status>* details) LOCKS_EXCLUDED(lock_);
+  virtual ::util::Status ReadTableEntry(
+        const ::p4::v1::TableEntry& table_entry,
+        WriterInterface<::p4::v1::ReadResponse>* writer) LOCKS_EXCLUDED(lock_);
   virtual ::util::Status ReadIndirectCounterEntry(
       const ::p4::v1::CounterEntry& counter_entry,
       WriterInterface<::p4::v1::ReadResponse>* writer) LOCKS_EXCLUDED(lock_);
@@ -57,6 +60,9 @@ class NikssNode {
  protected:
   // Default constructor. To be called by the Mock class instance only.
   NikssNode();
+
+  // Auxiliary functions
+  std::string ConvertToNikssName(std::string input_name);
 
  private:
   // Private constructor. Use CreateInstance() to create an instance of this

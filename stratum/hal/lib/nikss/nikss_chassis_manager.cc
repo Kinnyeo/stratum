@@ -26,7 +26,6 @@ namespace {
   RETURN_IF_ERROR(nikss_interface_->AddPort(node_id, port_name));
   return ::util::OkStatus();
 }
-
 }
 
 std::unique_ptr<NikssChassisManager> NikssChassisManager::CreateInstance(
@@ -40,7 +39,6 @@ std::unique_ptr<NikssChassisManager> NikssChassisManager::CreateInstance(
   ::util::Status status = ::util::OkStatus();  // errors to keep track of.
   
   std::map<uint64, std::map<uint32, PortConfig>> chassis_config;
-
   for (const auto& singleton_port : config.singleton_ports()) {
     PortConfig port = {
       .port_id = singleton_port.id(),

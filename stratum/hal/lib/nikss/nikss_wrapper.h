@@ -8,9 +8,6 @@
 #include "stratum/glue/status/status.h"
 #include "p4/v1/p4runtime.pb.h"
 #include "stratum/hal/lib/nikss/nikss_interface.h"
-extern "C" {
-#include "nikss/nikss.h"
-}
 
 namespace stratum {
 namespace hal {
@@ -20,7 +17,7 @@ namespace nikss {
 // to talk to the Linux eBPF subsystem via the NIKSS APIs calls.
 class NikssWrapper : public NikssInterface {
  public:
-  
+
   // NikssInterface public methods.
   ::util::Status AddPort(int pipeline_id,
       const std::string& port_name);
@@ -35,22 +32,36 @@ class NikssWrapper : public NikssInterface {
       int node_id, std::string nikss_name);
   ::util::Status AddMatchesToEntry(const ::p4::v1::TableEntry& request,
       const ::p4::config::v1::Table table,
-      nikss_table_entry_t* entry);
+      nikss_table_entry_t* entry,
+      bool type_insert_or_modify);
   ::util::Status AddActionsToEntry(const ::p4::v1::TableEntry& request,
       const ::p4::config::v1::Table table,
       const ::p4::config::v1::Action action,
       nikss_action_t* action_ctx,
       nikss_table_entry_ctx_t* entry_ctx,
       nikss_table_entry_t* entry);
-  ::util::Status PushTableEntry(const ::p4::v1::Update::Type type,
+  ::util::Status PushTableEntry(const ::p4::v1::Update::Type update_type,
       const ::p4::config::v1::Table table,
       nikss_table_entry_ctx_t* entry_ctx,
       nikss_table_entry_t* entry);
+  ::util::StatusOr<::p4::v1::TableEntry> ReadTableEntry(
+      const ::p4::v1::TableEntry& request,
+      const ::p4::config::v1::Table table,
+      nikss_table_entry_t* entry,
+      nikss_table_entry_ctx_t* entry_ctx,
+      std::map<std::string, NikssInterface::ActionData> table_actions);
+  ::util::Status ReadSingleTable(
+      const ::p4::v1::TableEntry& table_entry,
+      const ::p4::config::v1::Table table,
+      nikss_table_entry_t* entry,
+      nikss_table_entry_ctx_t* entry_ctx,
+      WriterInterface<::p4::v1::ReadResponse>* writer,
+      std::map<std::string, NikssInterface::ActionData> table_actions,
+      bool has_match_key);
   ::util::Status TableCleanup(nikss_context_t* nikss_ctx,
       nikss_table_entry_t* entry,
       nikss_table_entry_ctx_t* entry_ctx,
       nikss_action_t* action_ctx);
-
   ::util::Status CounterContextInit(nikss_context_t* nikss_ctx,
       nikss_counter_context_t* counter_ctx, 
       nikss_counter_entry_t* nikss_counter, int node_id, 
@@ -91,6 +102,7 @@ class NikssWrapper : public NikssInterface {
   // Auxiliary functions
   std::string ConvertToNikssName(std::string input_name);
   std::string SwapBytesOrder(std::string value);
+  int ConvertBitwidthToSize(int bitwidth);
 
  private:
 
