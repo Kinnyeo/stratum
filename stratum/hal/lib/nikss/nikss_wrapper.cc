@@ -30,7 +30,6 @@ extern "C" {
     }                                                                            \
   } while (0)
 
-
 namespace stratum {
 namespace hal {
 namespace nikss {
@@ -259,7 +258,6 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
             break;
           }
         }
-
         if (!param_exists){
           return MAKE_ERROR(ERR_INVALID_PARAM) << "Parameter not found!";
         }
@@ -317,7 +315,7 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
     const ::p4::config::v1::Table table,
     nikss_table_entry_t* entry,
     nikss_table_entry_ctx_t* entry_ctx,
-    std::map<std::string, std::pair<uint32, std::vector<int32>>> table_actions){
+    std::map<std::string, ActionData> table_actions){
   ::p4::v1::TableEntry result;
   result.set_table_id(request.table_id());
   
@@ -365,8 +363,8 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
 
   uint32_t nikss_action_id = nikss_action_get_id(entry);
   const char *action_name = nikss_action_get_name(entry_ctx, nikss_action_id);
-  uint32_t action_id = table_actions[action_name].first;
-  const auto& bitwidths = table_actions[action_name].second;
+  uint32_t action_id = table_actions[action_name].action_id;
+  const auto& bitwidths = table_actions[action_name].bitwidths;
 
   LOG(INFO) << "Action name: " << action_name << ", ID: " << action_id;
   if (table_actions.count(action_name) == 0){
@@ -396,7 +394,7 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
     nikss_table_entry_t* entry,
     nikss_table_entry_ctx_t* entry_ctx,
     WriterInterface<::p4::v1::ReadResponse>* writer,
-    std::map<std::string, std::pair<uint32, std::vector<int32>>> table_actions,
+    std::map<std::string, ActionData> table_actions,
     bool has_match_key){
   ::p4::v1::TableEntry result;
   ::p4::v1::ReadResponse resp;

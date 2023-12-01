@@ -15,6 +15,11 @@ namespace nikss {
 class NikssInterface {
  public:
   
+  struct ActionData {
+    uint32 action_id;
+    std::vector<int32> bitwidths;
+  };
+
   // Add and initialize a NIKSS pipeline. The pipeline will be loaded
   // into the Linux eBPF subsystem. Can be used to re-initialize an existing device.
   virtual ::util::Status AddPipeline(int pipeline_id,
@@ -86,7 +91,7 @@ class NikssInterface {
       const ::p4::config::v1::Table table,
       nikss_table_entry_t* entry,
       nikss_table_entry_ctx_t* entry_ctx,
-      std::map<std::string, std::pair<uint32, std::vector<int32>>> table_actions) = 0;
+      std::map<std::string, ActionData> table_actions) = 0;
 
   // Read specified table
   virtual ::util::Status ReadSingleTable(
@@ -95,7 +100,7 @@ class NikssInterface {
       nikss_table_entry_t* entry,
       nikss_table_entry_ctx_t* entry_ctx,
       WriterInterface<::p4::v1::ReadResponse>* writer,
-      std::map<std::string, std::pair<uint32, std::vector<int32>>> table_actions,
+      std::map<std::string, ActionData> table_actions,
       bool has_match_key) = 0;
 
   // Cleanup Table
