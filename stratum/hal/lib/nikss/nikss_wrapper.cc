@@ -143,7 +143,7 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
     const ::p4::v1::TableEntry& request,
     const ::p4::config::v1::Table table,
     nikss_table_entry_t* entry,
-    uint8_t type){
+    bool type_insert_or_modify){
   // Finding matches from request in p4info file
   bool ternary_key_exists = 0;
   for (const auto& expected_match : table.match_fields()){
@@ -202,15 +202,16 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
       }
     }
   }
-  //force ignore priority
-  if (type == (INSERT_ENTRY || MODIFY_ENTRY)){
+
+  if (type_insert_or_modify){
     auto priority = request.priority();
     if (!ternary_key_exists && priority != 0){
       return MAKE_ERROR(ERR_INVALID_PARAM) << "Priority provided without TERNARY key!";
     } else if (ternary_key_exists && priority == 0){
       return MAKE_ERROR(ERR_INVALID_PARAM) << "Priority not provided with TERNARY key!";
-    } else if exists:
-    //nikks priority
+    } else if (ternary_key_exists){
+      nikss_table_entry_priority(entry, priority);
+    }
   }
   return ::util::OkStatus();
 }
@@ -272,12 +273,12 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
 }
 
 ::util::Status NikssWrapper::PushTableEntry(
-    uint8_t type,
+    const ::p4::v1::Update::Type update_type,
     const ::p4::config::v1::Table table,
     nikss_table_entry_ctx_t* entry_ctx,
     nikss_table_entry_t* entry){
-  switch (type) {
-    case INSERT_ENTRY: {
+  switch (update_type) {
+    case ::p4::v1::Update::INSERT: {
       int error_code = nikss_table_entry_add(entry_ctx, entry);
       if (error_code != NO_ERROR){
         return MAKE_ERROR(ERR_INTERNAL) << "Inserting table entry failed!";
@@ -286,7 +287,7 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
       LOG(INFO) << "Successfully added table " << ConvertToNikssName(name) << ".";
       break;
     }
-    case MODIFY_ENTRY: {
+    case ::p4::v1::Update::MODIFY: {
       int error_code = nikss_table_entry_update(entry_ctx, entry);
       if (error_code != NO_ERROR){
         return MAKE_ERROR(ERR_INTERNAL) << "Modifying table entry failed!";
@@ -295,7 +296,7 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
       LOG(INFO) << "Successfully modified table " << ConvertToNikssName(name) << ".";
       break;
     }
-    case DELETE_ENTRY: {
+    case ::p4::v1::Update::DELETE: {
       int error_code = nikss_table_entry_del(entry_ctx, entry);
       if (error_code != NO_ERROR){
         return MAKE_ERROR(ERR_INTERNAL) << "Removing table entry failed!";
@@ -305,7 +306,7 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
     }
     default: {
       return MAKE_ERROR(ERR_INTERNAL)
-              << "Unsupported update type: " << type << ".";
+              << "Unsupported update type: " << update_type << ".";
     }
   }
   return ::util::OkStatus();

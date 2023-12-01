@@ -9,10 +9,6 @@
 #include "p4/v1/p4runtime.pb.h"
 #include "stratum/hal/lib/nikss/nikss_interface.h"
 
-#define INSERT_ENTRY 1
-#define MODIFY_ENTRY 2
-#define DELETE_ENTRY 3
-
 namespace stratum {
 namespace hal {
 namespace nikss {
@@ -37,14 +33,14 @@ class NikssWrapper : public NikssInterface {
   ::util::Status AddMatchesToEntry(const ::p4::v1::TableEntry& request,
       const ::p4::config::v1::Table table,
       nikss_table_entry_t* entry,
-      uint8_t type);
+      bool type_insert_or_modify);
   ::util::Status AddActionsToEntry(const ::p4::v1::TableEntry& request,
       const ::p4::config::v1::Table table,
       const ::p4::config::v1::Action action,
       nikss_action_t* action_ctx,
       nikss_table_entry_ctx_t* entry_ctx,
       nikss_table_entry_t* entry);
-  ::util::Status PushTableEntry(uint8_t type,
+  ::util::Status PushTableEntry(const ::p4::v1::Update::Type update_type,
       const ::p4::config::v1::Table table,
       nikss_table_entry_ctx_t* entry_ctx,
       nikss_table_entry_t* entry);

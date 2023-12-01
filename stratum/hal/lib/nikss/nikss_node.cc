@@ -140,16 +140,11 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
   auto entry_ctx = absl::make_unique<nikss_table_entry_ctx_t>();
   auto action_ctx = absl::make_unique<nikss_action_t>();
 
-  // Cast Update type to int
-  uint8_t type = 0;
-  if (update_type == ::p4::v1::Update::INSERT){
-    type = INSERT_ENTRY;
-  } else if (update_type == ::p4::v1::Update::MODIFY){
-    type = MODIFY_ENTRY;
-  } else if (update_type == ::p4::v1::Update::DELETE){
-    type = DELETE_ENTRY;
-  } else {
-    return MAKE_ERROR(ERR_INTERNAL) << "Not a correct update type.";
+  // Convert Update type to boolean
+  bool type_insert_or_modify = false;
+  if (update_type == ::p4::v1::Update::INSERT || 
+      update_type == ::p4::v1::Update::MODIFY){
+    type_insert_or_modify = true;
   }
 
   ::util::Status status;
@@ -163,7 +158,8 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
   }
 
   // Add matches from request to entry
-  status = nikss_interface_->AddMatchesToEntry(table_entry, table, entry.get(), type);
+  status = nikss_interface_->AddMatchesToEntry(table_entry, table, entry.get(),
+                                               type_insert_or_modify);
   if (status != ::util::OkStatus()){
     nikss_interface_->TableCleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
                                     action_ctx.get());
@@ -171,7 +167,7 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
   }
 
   // Add actions from request to entry
-  if (type == (INSERT_ENTRY || MODIFY_ENTRY)){ // Not neccessary to add actions on DETELE request
+  if (type_insert_or_modify){ // Not neccessary to add actions on DELETE request
     status = nikss_interface_->AddActionsToEntry(table_entry, table, action,
                                       action_ctx.get(), entry_ctx.get(), entry.get());
     if (status != ::util::OkStatus()){
@@ -182,7 +178,7 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
   }
 
   // Push table entry
-  status = nikss_interface_->PushTableEntry(type, table, entry_ctx.get(), entry.get());
+  status = nikss_interface_->PushTableEntry(update_type, table, entry_ctx.get(), entry.get());
   if (status != ::util::OkStatus()){
     nikss_interface_->TableCleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
                                     action_ctx.get());
@@ -295,7 +291,7 @@ std::string NikssNode::ConvertToNikssName(std::string input_name){
 
   // Add matches from request to entry if match key is provided
   if (has_match_key){
-    status = nikss_interface_->AddMatchesToEntry(table_entry, table, entry.get(), READ_ENTRY);
+    status = nikss_interface_->AddMatchesToEntry(table_entry, table, entry.get(), false);
     if (status != ::util::OkStatus()){
       nikss_interface_->TableCleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
                                       action_ctx.get());
