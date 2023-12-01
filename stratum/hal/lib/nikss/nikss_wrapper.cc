@@ -103,9 +103,7 @@ std::string NikssWrapper::SwapBytesOrder(std::string value){
 }
 
 int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
-  float temp;
-  temp = bitwidth / 8.0;
-  return (int) std::ceil(temp);
+  return (int) std::ceil(((double) bitwidth) / 8.0);
 }
 
 ::util::Status NikssWrapper::TableContextInit(
@@ -204,14 +202,15 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
       }
     }
   }
-
+  //force ignore priority
   if (type == (INSERT_ENTRY || MODIFY_ENTRY)){
     auto priority = request.priority();
     if (!ternary_key_exists && priority != 0){
       return MAKE_ERROR(ERR_INVALID_PARAM) << "Priority provided without TERNARY key!";
     } else if (ternary_key_exists && priority == 0){
       return MAKE_ERROR(ERR_INVALID_PARAM) << "Priority not provided with TERNARY key!";
-    }
+    } else if exists:
+    //nikks priority
   }
   return ::util::OkStatus();
 }
@@ -363,18 +362,20 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
     result.set_priority(nikss_table_entry_get_priority(entry));
   }
 
-  uint32_t action_id = nikss_action_get_id(entry);
-  const char *action_name = nikss_action_get_name(entry_ctx, action_id);
-  LOG(INFO) << "Action name: " << action_name << ", ID: " << table_actions[action_name].first;
+  uint32_t nikss_action_id = nikss_action_get_id(entry);
+  const char *action_name = nikss_action_get_name(entry_ctx, nikss_action_id);
+  uint32_t action_id = table_actions[action_name].first;
+  const auto& bitwidths = table_actions[action_name].second;
+
+  LOG(INFO) << "Action name: " << action_name << ", ID: " << action_id;
   if (table_actions.count(action_name) == 0){
     return MAKE_ERROR(ERR_INVALID_P4_INFO)
             << "Action " << action_name << " not found in P4info.";
   }
-  result.mutable_action()->mutable_action()->set_action_id(table_actions[action_name].first);
+  result.mutable_action()->mutable_action()->set_action_id(action_id);
 
   index = 1;
   nikss_action_param_t *ap = NULL;
-  std::vector<int32> bitwidths = table_actions[action_name].second;
   while ((ap = nikss_action_param_get_next(entry)) != NULL) {
     auto* param = result.mutable_action()->mutable_action()->add_params();
     int size = ConvertBitwidthToSize(bitwidths[index-1]);
