@@ -46,9 +46,9 @@ NikssWrapper::NikssWrapper() {}
   nikss_context_set_pipeline(ctx.get(), static_cast<nikss_pipeline_id_t>(pipeline_id));
 
   int port_id = -1;
-  LOG(INFO) << "Adding port " << port_name << " to pipeline " << pipeline_id << ".";
+  LOG(INFO) << "Adding port '" << port_name << "' to pipeline " << pipeline_id;
   RETURN_IF_NIKSS_ERROR(nikss_pipeline_add_port(ctx.get(), port_name.c_str(), &port_id));
-  LOG(INFO) << "Port added with port_id: " << port_id << ".";
+  LOG(INFO) << "Port '" << port_name << "' added with port_id: " << port_id;
   nikss_context_free(ctx.get());
   
   return ::util::OkStatus();
@@ -78,7 +78,7 @@ NikssWrapper::NikssWrapper() {}
   nikss_context_init(ctx.get());
   nikss_context_set_pipeline(ctx.get(), static_cast<nikss_pipeline_id_t>(pipeline_id));
   if (nikss_pipeline_exists(ctx.get())) {
-    LOG(INFO) << "NIKSS pipeline already exists, re-pushing is not supported yet.";
+    LOG(WARNING) << "NIKSS pipeline already exists, re-pushing is not supported yet.";
     return ::util::OkStatus();
   }
 
@@ -126,7 +126,7 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
     const ::p4::v1::TableEntry& request,
     const ::p4::config::v1::Table table,
     nikss_table_entry_t* entry,
-    bool type_insert_or_modify){
+    bool insert_or_modify_entry){
   // Finding matches from request in p4info file
   bool ternary_key_exists = 0;
   for (const auto& expected_match : table.match_fields()){
@@ -141,8 +141,8 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
           case ::p4::config::v1::MatchField::EXACT: {
             auto exact_m = match.exact();
             value = exact_m.value();
-            LOG(INFO) << "Found exact match with name: " << expected_match.name()
-                      << " and value: " << value;
+            //LOG(INFO) << "Found exact match with name: " << expected_match.name()
+            //          << " and value: " << value;
             nikss_matchkey_type(&mk, NIKSS_EXACT);
             break;
           }
@@ -150,8 +150,8 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
             ternary_key_exists = 1;
             auto ternary_m = match.ternary();
             value = ternary_m.value();
-            LOG(INFO) << "Found ternary match with name: " << expected_match.name()
-                      << ", value: " << value << " and mask: " << ternary_m.mask();
+            //LOG(INFO) << "Found ternary match with name: " << expected_match.name()
+            //          << ", value: " << value << " and mask: " << ternary_m.mask();
             nikss_matchkey_type(&mk, NIKSS_TERNARY);
             nikss_matchkey_mask(&mk, SwapBytesOrder(ternary_m.mask()).c_str(), ternary_m.mask().length()); //errory
             break;
@@ -159,8 +159,8 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
           case ::p4::config::v1::MatchField::LPM: {
             auto lpm_m = match.lpm();
             value = lpm_m.value();
-            LOG(INFO) << "Found LPM match with name: " << expected_match.name()
-                      << ", value: " << value << " and prefix length: " << lpm_m.prefix_len();
+            //LOG(INFO) << "Found LPM match with name: " << expected_match.name()
+            //          << ", value: " << value << " and prefix length: " << lpm_m.prefix_len();
             nikss_matchkey_type(&mk, NIKSS_LPM);
             nikss_matchkey_prefix_len(&mk, lpm_m.prefix_len());
             break;
@@ -186,7 +186,7 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
     }
   }
 
-  if (type_insert_or_modify){
+  if (insert_or_modify_entry){
     auto priority = request.priority();
     if (!ternary_key_exists && priority != 0){
       return MAKE_ERROR(ERR_INVALID_PARAM) << "Priority provided without TERNARY key!";
@@ -211,8 +211,11 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
   for (const auto& p4info_action : table.action_refs()){
     if (action_id == p4info_action.id()){
       std::string action_name = ConvertToNikssName(action.preamble().name());
-      LOG(INFO) << "Found action with name: " << action_name;
+      //LOG(INFO) << "Found action with name: " << action_name;
 
+      if (action_name == "NoAction"){
+        action_name = "_" + action_name;
+      }
       int action_ctx_id = nikss_table_get_action_id_by_name(entry_ctx, action_name.c_str());
       nikss_action_set_id(action_ctx, action_ctx_id);
       
@@ -221,10 +224,10 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
         int param_id = param.id();
         for (auto request_param : request.action().action().params()){
           if (request_param.param_id() == param_id){
-            LOG(INFO) << "Param value: " << request_param.value();
+            //LOG(INFO) << "Param value: " << request_param.value();
 
             auto value = SwapBytesOrder(request_param.value());
-            LOG(INFO) << "length: "<< value.length();
+            //LOG(INFO) << "length: "<< value.length();
             nikss_action_param_t param;
 
             int error_code = nikss_action_param_create(&param, value.c_str(), value.length());
@@ -266,7 +269,7 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
         return MAKE_ERROR(ERR_INTERNAL) << "Inserting table entry failed!";
       }
       auto name = table.preamble().name();
-      LOG(INFO) << "Successfully added table " << ConvertToNikssName(name) << ".";
+      //LOG(INFO) << "Successfully added entry in table: " << ConvertToNikssName(name) << ".";
       break;
     }
     case ::p4::v1::Update::MODIFY: {
@@ -275,7 +278,7 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
         return MAKE_ERROR(ERR_INTERNAL) << "Modifying table entry failed!";
       }
       auto name = table.preamble().name();
-      LOG(INFO) << "Successfully modified table " << ConvertToNikssName(name) << ".";
+      //LOG(INFO) << "Successfully modified entry in table: " << ConvertToNikssName(name) << ".";
       break;
     }
     case ::p4::v1::Update::DELETE: {
@@ -283,7 +286,8 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
       if (error_code != NO_ERROR){
         return MAKE_ERROR(ERR_INTERNAL) << "Removing table entry failed!";
       }
-      LOG(INFO) << "Successfully removed table.";
+      auto name = table.preamble().name();
+      //LOG(INFO) << "Successfully removed entry in table: " << ConvertToNikssName(name) << ".";
       break;
     }
     default: {
@@ -347,14 +351,15 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
 
   uint32_t nikss_action_id = nikss_action_get_id(entry);
   const char *action_name = nikss_action_get_name(entry_ctx, nikss_action_id);
-  uint32_t action_id = table_actions[action_name].action_id;
-  const auto& bitwidths = table_actions[action_name].bitwidths;
-
-  LOG(INFO) << "Action name: " << action_name << ", ID: " << action_id;
   if (table_actions.count(action_name) == 0){
     return MAKE_ERROR(ERR_INVALID_P4_INFO)
             << "Action " << action_name << " not found in P4info.";
   }
+
+  uint32_t action_id = table_actions[action_name].action_id;
+  const auto& bitwidths = table_actions[action_name].bitwidths;
+
+  //LOG(INFO) << "Action name: " << action_name << ", ID: " << action_id;
   result.mutable_action()->mutable_action()->set_action_id(action_id);
 
   index = 1;
@@ -383,7 +388,7 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
   ::p4::v1::TableEntry result;
   ::p4::v1::ReadResponse resp;
   if (!has_match_key){
-    LOG(INFO) << "No match key provided. Reading all entries from table.";
+    //LOG(INFO) << "No match key provided. Reading all entries from table.";
     nikss_table_entry_t *iter = NULL;
     while ((iter = nikss_table_entry_get_next(entry_ctx)) != NULL) {
       ASSIGN_OR_RETURN(result, ReadTableEntry(table_entry, table, iter,
@@ -400,7 +405,6 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
     *resp.add_entities()->mutable_table_entry() = result;
   }
 
-  LOG(INFO) << "Response: " << resp.DebugString();
   if (!writer->Write(resp)) {
     return MAKE_ERROR(ERR_INTERNAL) << "Write to stream for failed.";
   }
@@ -443,18 +447,18 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
   if (counter_type == NIKSS_COUNTER_TYPE_BYTES) {
       nikss_counter_value_t bytes_value = nikss_counter_entry_get_bytes(nikss_counter);
       result.mutable_data()->set_byte_count(bytes_value);
-      LOG(INFO) << "Counter read (b): " << bytes_value;
+      //LOG(INFO) << "Counter read (b): " << bytes_value;
   } else if (counter_type == NIKSS_COUNTER_TYPE_PACKETS) {
       nikss_counter_value_t packets_value = nikss_counter_entry_get_packets(nikss_counter);
       result.mutable_data()->set_packet_count(packets_value);
-      LOG(INFO) << "Counter read (p): " << packets_value;
+      //LOG(INFO) << "Counter read (p): " << packets_value;
   } else if (counter_type == NIKSS_COUNTER_TYPE_BYTES_AND_PACKETS) {
       nikss_counter_value_t bytes_value = nikss_counter_entry_get_bytes(nikss_counter);
       nikss_counter_value_t packets_value = nikss_counter_entry_get_packets(nikss_counter);
       result.mutable_data()->set_byte_count(bytes_value);
       result.mutable_data()->set_packet_count(packets_value);
-      LOG(INFO) << "Counter read (b/p): " << nikss_counter_entry_get_bytes(nikss_counter) 
-                << "/" << nikss_counter_entry_get_packets(nikss_counter);
+      //LOG(INFO) << "Counter read (b/p): " << nikss_counter_entry_get_bytes(nikss_counter) 
+      //          << "/" << nikss_counter_entry_get_packets(nikss_counter);
   } else {
       return MAKE_ERROR(ERR_INVALID_PARAM) << "Wrong counter type!";
   }
@@ -470,7 +474,7 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
   absl::optional<uint32> optional_counter_index;
   ::p4::v1::ReadResponse resp;
   optional_counter_index = counter_entry.index().index();
-  LOG(INFO) << "Counter index: " << optional_counter_index.value();
+  //LOG(INFO) << "Counter index: " << optional_counter_index.value();
 
   int ret = nikss_counter_entry_set_key(nikss_counter, &(*optional_counter_index), sizeof(*optional_counter_index));
   if (ret != NO_ERROR){
@@ -486,7 +490,6 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
   result.mutable_index()->set_index(optional_counter_index.value());
 
   *resp.add_entities()->mutable_counter_entry() = result;
-  LOG(INFO) << "Response: " << resp.DebugString();
   if (!writer->Write(resp)) {
     return MAKE_ERROR(ERR_INTERNAL) << "Write to stream for failed.";
   }
@@ -497,13 +500,13 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
     const ::p4::v1::CounterEntry& counter_entry,
     nikss_counter_context_t* counter_ctx,
     WriterInterface<::p4::v1::ReadResponse>* writer){
-  LOG(INFO) << "No index provided. Reading all.";
+  //LOG(INFO) << "No index provided. Reading all.";
   nikss_counter_entry_t *iter = NULL;
   nikss_counter_type_t counter_type = nikss_counter_get_type(counter_ctx);
   unsigned int index = 0;
   ::p4::v1::ReadResponse resp;
   while ((iter = nikss_counter_get_next(counter_ctx)) != NULL) {
-    LOG(INFO) << "Counter with index: " << index << ".";
+    //LOG(INFO) << "Counter with index: " << index << ".";
     ASSIGN_OR_RETURN(auto result, ReadCounterEntry(iter, counter_type));
     // TODO: Retrieve key directly from counter
     /* In this case we're using variable "index" instead of retrieving it
@@ -516,7 +519,6 @@ int NikssWrapper::ConvertBitwidthToSize(int bitwidth){
     *resp.add_entities()->mutable_counter_entry() = result;
     index++;
   }
-  LOG(INFO) << "Response: \n" << resp.DebugString();
   if (!writer->Write(resp)) {
     return MAKE_ERROR(ERR_INTERNAL) << "Write to stream for failed.";
   }

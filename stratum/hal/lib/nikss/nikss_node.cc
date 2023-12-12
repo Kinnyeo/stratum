@@ -65,7 +65,7 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
   for (auto it = chassis_config[node_id_].begin(); it != chassis_config[node_id_].end(); it++) {
     uint32 key = it->first;
     NikssChassisManager::PortConfig config = it->second;
-    LOG(INFO) << "Adding new port with name " << config.name << ".";
+    //LOG(INFO) << "Adding new port with name " << config.name << ".";
     RETURN_IF_ERROR(nikss_interface_->AddPort(node_id_, config.name));
   }
   return ::util::OkStatus();
@@ -131,8 +131,8 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
                                   action_id));
 
   auto name = table.preamble().name();
-  LOG(INFO) << "New request table with id: " 
-            << table_id << " and name: " << name;
+  //LOG(INFO) << "New request table with id: " 
+  //          << table_id << " and name: " << name;
   
   // Nikss contexts declaration
   auto nikss_ctx = absl::make_unique<nikss_context_t>();
@@ -140,7 +140,6 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
   auto entry_ctx = absl::make_unique<nikss_table_entry_ctx_t>();
   auto action_ctx = absl::make_unique<nikss_action_t>();
 
-  // Convert Update type to boolean
   bool type_insert_or_modify = false;
   if (update_type == ::p4::v1::Update::INSERT || 
       update_type == ::p4::v1::Update::MODIFY){
@@ -260,8 +259,8 @@ std::string NikssNode::ConvertToNikssName(std::string input_name){
                                   table_id));
 
   auto name = table.preamble().name();
-  LOG(INFO) << "New request table with id: " 
-            << table_id << " and name: " << name;
+  //LOG(INFO) << "New request table with id: " 
+  //          << table_id << " and name: " << name;
 
   std::map<std::string, NikssInterface::ActionData> table_actions;
   for (const auto& p4info_action : table.action_refs()){
@@ -285,7 +284,7 @@ std::string NikssNode::ConvertToNikssName(std::string input_name){
                                               node_id_, name);
   if (status != ::util::OkStatus()){
     nikss_interface_->TableCleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
-                                    action_ctx.get());
+                                   action_ctx.get());
     return status;
   }
 
@@ -308,7 +307,7 @@ std::string NikssNode::ConvertToNikssName(std::string input_name){
                                               table_actions, has_match_key);
   if (status != ::util::OkStatus()){
     nikss_interface_->TableCleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
-                                    action_ctx.get());
+                                   action_ctx.get());
     return status;
   }
 
@@ -330,8 +329,8 @@ std::string NikssNode::ConvertToNikssName(std::string input_name){
                                   counter_id));
 
   auto name = counter.preamble().name();
-  LOG(INFO) << "New counter with id: " 
-            << counter_id << " and name: " << name;
+  //LOG(INFO) << "New counter with id: " 
+  //          << counter_id << " and name: " << name;
 
   auto nikss_ctx = absl::make_unique<nikss_context_t>();
   auto counter_ctx = absl::make_unique<nikss_counter_context_t>();
@@ -340,7 +339,7 @@ std::string NikssNode::ConvertToNikssName(std::string input_name){
   ::util::Status status;
   // Init nikss contexts
   status = nikss_interface_->CounterContextInit(nikss_ctx.get(), counter_ctx.get(), 
-                                          nikss_counter.get(), node_id_, name);
+                                                nikss_counter.get(), node_id_, name);
   if (status != ::util::OkStatus()){
     nikss_interface_->CounterCleanup(nikss_ctx.get(), counter_ctx.get(), nikss_counter.get());
     return status;
@@ -360,8 +359,8 @@ std::string NikssNode::ConvertToNikssName(std::string input_name){
   // Reading all counter entries
   } else {
     status = nikss_interface_->ReadAllCounterEntries(counter_entry, 
-                                                      counter_ctx.get(), 
-                                                      writer);
+                                                     counter_ctx.get(), 
+                                                     writer);
     if (status != ::util::OkStatus()){
       nikss_interface_->CounterCleanup(nikss_ctx.get(), counter_ctx.get(), nikss_counter.get());
       return status;
