@@ -140,10 +140,10 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
   auto entry_ctx = absl::make_unique<nikss_table_entry_ctx_t>();
   auto action_ctx = absl::make_unique<nikss_action_t>();
 
-  bool type_insert_or_modify = false;
+  bool insert_or_modify_entry = false;
   if (update_type == ::p4::v1::Update::INSERT || 
       update_type == ::p4::v1::Update::MODIFY){
-    type_insert_or_modify = true;
+    insert_or_modify_entry = true;
   }
 
   ::util::Status status;
@@ -158,7 +158,7 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
 
   // Add matches from request to entry
   status = nikss_interface_->AddMatchesToEntry(table_entry, table, entry.get(),
-                                               type_insert_or_modify);
+                                               insert_or_modify_entry);
   if (status != ::util::OkStatus()){
     nikss_interface_->TableCleanup(nikss_ctx.get(), entry.get(), entry_ctx.get(), 
                                     action_ctx.get());
@@ -166,7 +166,7 @@ std::unique_ptr<NikssNode> NikssNode::CreateInstance(
   }
 
   // Add actions from request to entry
-  if (type_insert_or_modify){ // Not neccessary to add actions on DELETE request
+  if (insert_or_modify_entry){ // Not neccessary to add actions on DELETE request
     status = nikss_interface_->AddActionsToEntry(table_entry, table, action,
                                       action_ctx.get(), entry_ctx.get(), entry.get());
     if (status != ::util::OkStatus()){
